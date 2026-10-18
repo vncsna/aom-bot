@@ -14,6 +14,15 @@ the BANG engine's built-in scripting language, and is installed as a **local mod
 
 ---
 
+## How Requirements Are Handled
+
+Requirements arrive as plain-language descriptions of desired behaviour, not as specs.
+Treat them as intent, not text: reorganize, merge, split and rewrite them into a coherent
+design, and document that design — never a transcript of the request. The goal is to
+achieve the behaviour, not to record how it was dictated.
+
+---
+
 ## Platform Notes (Immutable)
 
 - **OS:** Linux
@@ -186,6 +195,9 @@ gAttackWave.setPlayerToAttack(1);
 expressed — the strategy system, `StrategyData` policy, attack waves, defend plans,
 rules, build orders and overrides — with a translation cheat-sheet for turning plain
 behavior descriptions into code. Start here when adding functionality.
+
+[`docs/custom-bot-design.md`](docs/custom-bot-design.md) describes how the custom bot is
+put together and why — its goal, architecture and behaviour.
 
 ### Athens Syscalls (XS API)
 Full Doxygen HTML reference for all AI/KB/XS syscalls. **Not tracked in this repo** — it is

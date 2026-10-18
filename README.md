@@ -52,6 +52,8 @@ Then pick **CustomBot** as an AI opponent in the skirmish lobby.
   [`AGENTS.md`](AGENTS.md).
 - How bot behavior is expressed (strategies, attack waves, rules, overrides) and how to
   translate behavior into code: [`docs/ai-architecture.md`](docs/ai-architecture.md).
+- How the custom bot is designed and why:
+  [`docs/custom-bot-design.md`](docs/custom-bot-design.md).
 - Changes are tracked in the commit history.
 
 ## Legal
