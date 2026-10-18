@@ -94,9 +94,14 @@ Contents:
 ```
 aiDebug
 aiDebugScript
+AIvsAI
 ```
 `aiDebug` enables the debug menu (`Alt+Shift+Q`) and XS debugger (`Alt+Shift+D`).
 `aiDebugScript` causes XS warnings to trigger a debugger breakpoint automatically.
+`AIvsAI` replaces player 1 with an AI, so the bot can play another bot unattended — the
+bot's log then lands in `MythRetoldAIOutputPlayer1.txt`. Watch with `Ctrl+F1` (player 1)
+and `Ctrl+F2` (player 2). Configs are read at startup only, so restart the game after
+changing this file.
 
 ---
 
