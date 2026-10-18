@@ -39,6 +39,7 @@ int gCustomLastAge = -1;
 int gCustomRetreatSamplePop = -1;
 int gCustomRetreatSampleTime = 0;
 bool gCustomHeldTitanGate = false;
+int gCustomRaidPlanID = -1;
 
 //==============================================================================
 // Helpers
@@ -751,6 +752,10 @@ minInterval 90
 	{
 		return; // Don't split the army while committing.
 	}
+	if (aiPlanGetIsIDValid(gCustomRaidPlanID) == true)
+	{
+		return; // One raid at a time.
+	}
 	int target = aiGetMostHatedPlayerID();
 	if (target == -1)
 	{
@@ -779,6 +784,7 @@ minInterval 90
 	aiPlanAddUnitType(planID, cUnitTypeLogicalTypeLandMilitary, 2, 4, 8);
 	setDefaultAttackPlanTargetUnitTypes(planID);
 	aiPlanSetPriority(planID, 70);
+	gCustomRaidPlanID = planID;
 	aiEcho("[CustomBot] Raiding enemy economy at " + raidPoint + ".");
 }
 
