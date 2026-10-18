@@ -14,3 +14,7 @@ doxygen_retail.7z
 
 # --- Python -----------------------------------------------------------------
 __pycache__/
+
+# --- Per-match data ---------------------------------------------------------
+# Archived telemetry from scripts/archive_run.py; not source.
+runs/

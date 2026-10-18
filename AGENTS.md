@@ -343,9 +343,13 @@ To let an agent reason about results later, capture per-match metadata:
 
 - **Manual results sheet** — cheapest, works today: date, map, size, difficulty, our civ,
   opponent personality, opponent civ, result, duration, notes.
-- **Telemetry log** — richest: archive the `[CBOT]` lines (with a metadata header) per
-  match into a `runs/` folder. The game overwrites the log each session, so grab it right
-  after the match.
+- **Telemetry log** — richest: run `scripts/archive_run.py [notes…]` right after a match.
+  It keeps the bot's own `[CustomBot]` events and `[CBOT]` telemetry and writes them to
+  `runs/<stamp>-<map>.log`, under a header naming the map and both players (read from
+  `MythLog.txt` and the `MythAIConstantsPlayer<N>.txt` files). `scripts/parse_ai_log.py`
+  then reads the telemetry back out. The engine truncates the per-player log when the next
+  session starts, so archive *before* starting another match — otherwise that run's
+  telemetry is gone.
 - **Replays** — full fidelity for a human, but binary; keep them for manual review.
 
 A useful test matrix is a few fixed maps × a fixed difficulty × each stock personality ×
