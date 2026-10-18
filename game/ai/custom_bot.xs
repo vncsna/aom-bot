@@ -36,8 +36,10 @@ const int cCustomMaxVillagerPop = 90;
 bool gCustomNavalMap = false;
 bool gCustomPushing = false;
 int gCustomLastAge = -1;
-int gCustomRetreatSamplePop = -1;
-int gCustomRetreatSampleTime = 0;
+// Per attack plan in the field: its army power at the start of the loss window, and when.
+int[] gCustomRetreatPlanIDs = default;
+int[] gCustomRetreatSamplePops = default;
+int[] gCustomRetreatSampleTimes = default;
 bool gCustomHeldTitanGate = false;
 int gCustomRaidPlanID = -1;
 
@@ -163,20 +165,44 @@ int customFindRaidTarget(int target = -1)
 	return getUnit(cUnitTypeAbstractVillager, target, cUnitStateAlive);
 }
 
-void customRetreatArmy()
+// Is this attack bleeding out, or outnumbered where it stands?
+bool customAttackIsLosing(int planID = -1, int ourCount = 0, int ourPop = 0, int samplePop = 0)
 {
-	int[] plans = aiPlanGetIDsByType(cPlanAttack);
-	for (int i = 0; i < plans.size(); i++)
+	if (samplePop > 0)
 	{
-		int planID = plans[i];
-		if (aiPlanGetParentID(planID) != -1)
+		int lostPop = samplePop - ourPop;
+		int lostPercent = (lostPop * 100) / samplePop;
+		if (lostPercent >= cCustomRetreatLossPercent)
 		{
-			continue;
+			aiEcho("[CustomBot] Retreating " + aiPlanGetName(planID) + ": lost " + lostPop + " of " + samplePop + " pop.");
+			return true;
 		}
-		aiPlanSetState(planID, cPlanStateDone);
 	}
-	// Don't immediately walk back out; regroup first.
-	gAttackManager.mLastAttackTime = xsGetTime();
+	vector planLoc = aiPlanGetLocation(planID);
+	if (planLoc == cInvalidVector)
+	{
+		return false;
+	}
+	int enemyCount = getUnitCountByLocation(cUnitTypeLogicalTypeLandMilitary, cPlayerRelationEnemyNotGaia,
+		cUnitStateAlive, planLoc, 60.0);
+	int enemyRatio = (enemyCount * 100) / ourCount;
+	if (enemyCount >= 3 && enemyRatio > cCustomRetreatEnemyRatioPercent)
+	{
+		aiEcho("[CustomBot] Retreating " + aiPlanGetName(planID) + ": " + enemyCount + " enemies vs our " + ourCount + ".");
+		return true;
+	}
+	return false;
+}
+
+void customRetreatPlan(int planID = -1)
+{
+	aiPlanSetState(planID, cPlanStateDone);
+	// Don't immediately walk the main army back out; regroup first. A failed raid
+	// shouldn't hold up the main attack.
+	if (planID != gCustomRaidPlanID)
+	{
+		gAttackManager.mLastAttackTime = xsGetTime();
+	}
 }
 
 //==============================================================================
@@ -653,7 +679,8 @@ minInterval 10
 	aiPlanSetEventHandler(gTowerOffensiveResearchPlanID, cPlanEventStateChange, "resetOffensiveTowerResearchPlan");
 }
 
-// Retreat when an attack is bleeding out or we're outnumbered on the spot.
+// Pull back each attack that is bleeding out or outnumbered on the spot. Every
+// attack is judged on its own, so a failing raid never recalls the main army.
 rule customRetreatMonitor
 inactive
 minInterval 10
@@ -662,11 +689,11 @@ minInterval 10
 	{
 		return;
 	}
+	int now = xsGetTime();
+	int[] planIDs = new int(0, -1);
+	int[] samplePops = new int(0, -1);
+	int[] sampleTimes = new int(0, -1);
 	int[] plans = aiPlanGetIDsByType(cPlanAttack);
-	int ourCount = 0;
-	int ourPop = 0;
-	vector planLoc = cInvalidVector;
-	bool engaged = false;
 	for (int i = 0; i < plans.size(); i++)
 	{
 		int planID = plans[i];
@@ -684,54 +711,29 @@ minInterval 10
 		{
 			continue;
 		}
-		ourCount += units.size();
-		ourPop += kbUnitsGetPower(units, true);
-		planLoc = aiPlanGetLocation(planID);
-		engaged = true;
-	}
-
-	if (engaged == false)
-	{
-		gCustomRetreatSamplePop = -1;
-		return;
-	}
-
-	int now = xsGetTime();
-	bool retreat = false;
-	if (gCustomRetreatSamplePop > 0 && (now - gCustomRetreatSampleTime) <= cCustomRetreatLossWindow)
-	{
-		int lostPop = gCustomRetreatSamplePop - ourPop;
-		int lostPercent = (lostPop * 100) / gCustomRetreatSamplePop;
-		if (lostPercent >= cCustomRetreatLossPercent)
+		int ourPop = kbUnitsGetPower(units, true);
+		// Keep a plan's sample until its window has passed, so losses add up across checks.
+		int samplePop = ourPop;
+		int sampleTime = now;
+		int index = gCustomRetreatPlanIDs.find(planID);
+		if (index != -1 && (now - gCustomRetreatSampleTimes[index]) <= cCustomRetreatLossWindow)
 		{
-			aiEcho("[CustomBot] Retreating: lost " + lostPop + " of " + gCustomRetreatSamplePop + " pop.");
-			retreat = true;
+			samplePop = gCustomRetreatSamplePops[index];
+			sampleTime = gCustomRetreatSampleTimes[index];
 		}
-	}
-	if (retreat == false && planLoc != cInvalidVector)
-	{
-		int enemyCount = getUnitCountByLocation(cUnitTypeLogicalTypeLandMilitary, cPlayerRelationEnemyNotGaia,
-			cUnitStateAlive, planLoc, 60.0);
-		int enemyRatio = (enemyCount * 100) / ourCount;
-		if (enemyCount >= 3 && enemyRatio > cCustomRetreatEnemyRatioPercent)
+		if (customAttackIsLosing(planID, units.size(), ourPop, samplePop) == true)
 		{
-			aiEcho("[CustomBot] Retreating: " + enemyCount + " enemies vs our " + ourCount + ".");
-			retreat = true;
+			customRetreatPlan(planID);
+			continue;
 		}
+		planIDs.add(planID);
+		samplePops.add(samplePop);
+		sampleTimes.add(sampleTime);
 	}
-
-	if (retreat == true)
-	{
-		customRetreatArmy();
-		gCustomRetreatSamplePop = -1;
-		return;
-	}
-	// Keep the sample until the window has passed, so losses add up across checks.
-	if (gCustomRetreatSamplePop <= 0 || (now - gCustomRetreatSampleTime) > cCustomRetreatLossWindow)
-	{
-		gCustomRetreatSamplePop = ourPop;
-		gCustomRetreatSampleTime = now;
-	}
+	// Plans that ended or left the field drop out of the samples here.
+	gCustomRetreatPlanIDs = planIDs;
+	gCustomRetreatSamplePops = samplePops;
+	gCustomRetreatSampleTimes = sampleTimes;
 }
 
 // When we can't commit to a full attack, send a small group to hit the enemy

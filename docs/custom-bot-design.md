@@ -103,10 +103,11 @@ one base or we are an age ahead. While pushing the cadence drops to `cCustomPush
 and raids stop so the army stays massed. It is deliberately conservative — we only stop
 being patient once the game is effectively won.
 
-**Retreat when it is not working.** `customRetreatMonitor` samples the attacking army's pop
-and the enemy count around the attack. It pulls the army back when either a large share of
-it dies quickly, or the enemy on the spot clearly outnumbers us. Pulling back also pushes
-the next attack out, so the army regroups rather than re-committing.
+**Retreat when it is not working.** `customRetreatMonitor` judges each attack in the field
+on its own: its army pop over the loss window, and the enemy count around it. It pulls that
+attack back when either a large share of it dies within the window, or the enemy on the
+spot clearly outnumbers it. Pulling back the main army also pushes the next attack out, so
+it regroups rather than re-committing; a failed raid is simply called off.
 
 **Raid the economy otherwise.** When we cannot commit to a real attack and have spare army,
 `customRaidMonitor` sends a small group at an enemy drop site (falling back to a villager)
