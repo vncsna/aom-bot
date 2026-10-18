@@ -70,6 +70,31 @@ instead.
 Functions are different — one defined in an included file is visible, so the only ordering
 rule is the same-file one above.
 
+## Expressions and conditions
+
+A comparison whose **left** operand is an arithmetic expression must be parenthesised when
+it sits inside a compound condition:
+
+```c
+// Rejected: Error 0308: illogical or invalid expression.
+if (lostPop > 0 && lostPop * 100 >= sample * percent)
+
+// Accepted — and this is what every shipped instance looks like.
+if (wantedPop != 0 && (navyPop * 0.8) > enemyWarships)
+```
+
+Arithmetic on the **right** of a comparison needs no parentheses
+(`a < b * 1.6 && a > b * 0.4` appears in `core/economy/trade.xs`), and a lone comparison
+without `&&` is fine either way.
+
+Cleaner still, and what this repo prefers: compute into a local, then compare two simple
+values.
+
+```c
+int lostPercent = (lostPop * 100) / sample;
+if (lostPercent >= cCustomRetreatLossPercent)
+```
+
 ## Types
 
 `bool`, `int`, `float`, `string`, `vector`, with `const` for compile-time constants. A
@@ -126,7 +151,8 @@ seconds.
 | `0052` | `could not parse the code for THEN block` | Follows `0310` inside an `if` body. |
 | `0135` | `parseConditionDecl failed` | Follows `0310` or `0172` inside a condition. |
 | `0172` | `'<name>' is not a valid operator` | A symbol is not visible — usually a global that is not `extern`. |
-| `0165` | `high level parseExpr2 failed` | Follows `0172`. |
+| `0165` | `high level parseExpr2 failed` | Follows `0172` or `0308`. |
+| `0308` | `illogical or invalid expression` | A comparison's left operand is unparenthesised arithmetic inside a compound condition. |
 | `0047` | `could not parse the code for '<function>'` | Follows a syntax error inside that function. |
 | — | `could not compile file 'custom_bot.xs'` | Follows any of the above; the bot does not load. |
 
@@ -139,6 +165,7 @@ costs a full game launch to find. Check these first:
 2. Every function is defined before its first use (or declared `mutable`).
 3. Every global referenced is `extern`-declared or defined in this file.
 4. Braces, parentheses and brackets balance.
-5. Every engine function, constant and global exists — cross-check against the base-game
+5. No comparison inside `&&`/`||` has unparenthesised arithmetic on its left.
+6. Every engine function, constant and global exists — cross-check against the base-game
    scripts and the generated `temp/Logs/MythAIConstantsPlayer1.txt`.
-6. Tabs for indentation, no trailing whitespace (see `.editorconfig`).
+7. Tabs for indentation, no trailing whitespace (see `.editorconfig`).
