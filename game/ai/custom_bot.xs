@@ -725,8 +725,12 @@ minInterval 10
 		gCustomRetreatSamplePop = -1;
 		return;
 	}
-	gCustomRetreatSamplePop = ourPop;
-	gCustomRetreatSampleTime = now;
+	// Keep the sample until the window has passed, so losses add up across checks.
+	if (gCustomRetreatSamplePop <= 0 || (now - gCustomRetreatSampleTime) > cCustomRetreatLossWindow)
+	{
+		gCustomRetreatSamplePop = ourPop;
+		gCustomRetreatSampleTime = now;
+	}
 }
 
 // When we can't commit to a full attack, send a small group to hit the enemy
