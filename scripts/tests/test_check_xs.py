@@ -2,7 +2,7 @@
 """Regression tests for scripts/check_xs.py.
 
 Each case is a snippet the engine rejects, paired with the message the checker must
-produce. They are the six errors that have cost us a game launch so far.
+produce, one per kind of error the checker guards against.
 """
 import os
 import subprocess
@@ -42,6 +42,11 @@ CASES = {
     "unknown constant": (
         "void foo()\n{\n\tint x = cNotARealConstant;\n}\n",
         "not a known constant",
+        True,
+    ),
+    "unknown function": (
+        "void foo()\n{\n\taiPlanGetIDsByTyp(cPlanAttack);\n}\n",
+        "not a known function",
         True,
     ),
     "unknown rule": (

@@ -135,6 +135,14 @@ def check_constants(lines, known_constants, report):
                 report(i + 1, f"'{name}' is not a known constant")
 
 
+def check_functions(lines, known_functions, report):
+    local = {m.group(2) for line in lines if (m := FUNC_DEF.match(line))}
+    for i, line in enumerate(lines):
+        for name in set(CALL.findall(line)):
+            if name not in local and name not in known_functions and name not in KEYWORDS:
+                report(i + 1, f"'{name}' is not a known function")
+
+
 def check_rule_names(text, known_rules, report):
     for i, line in enumerate(text.splitlines(), 1):
         for name in RULE_USE.findall(line):
@@ -175,7 +183,7 @@ def check_left_arithmetic(lines, report):
 
 
 def game_symbols():
-    extern_globals, constants, rules = set(), set(), set()
+    extern_globals, constants, rules, functions = set(), set(), set(), set()
     if not GAME_AI.is_dir():
         return None
     for path in GAME_AI.rglob("*.xs"):
@@ -187,9 +195,11 @@ def game_symbols():
                 rules.add(m.group(1))
         # Engine constants (cMyID, cUnitType...) are never defined in XS, only used.
         constants |= set(re.findall(r"\b(c[A-Z]\w*)\b", text))
+        # Syscalls are never defined in XS either; every call or definition counts.
+        functions |= set(CALL.findall(text))
     if CONSTANTS.is_file():
         constants |= set(re.findall(r"\b(c[A-Z]\w*)\b", CONSTANTS.read_text(errors="ignore")))
-    return extern_globals, constants, rules
+    return extern_globals, constants, rules, functions
 
 
 def main():
@@ -217,9 +227,10 @@ def main():
         check_forward_refs(lines, lambda ln, msg: problems.append((ln, msg)))
         check_left_arithmetic(lines, lambda ln, msg: problems.append((ln, msg)))
         if symbols:
-            extern_globals, constants, rules = symbols
+            extern_globals, constants, rules, functions = symbols
             check_globals(lines, extern_globals, lambda ln, msg: problems.append((ln, msg)))
             check_constants(lines, constants, lambda ln, msg: problems.append((ln, msg)))
+            check_functions(lines, functions, lambda ln, msg: problems.append((ln, msg)))
             check_rule_names(keep, rules | {m.group(1) for m in
                                             (RULE_DEF.match(l) for l in lines) if m},
                              lambda ln, msg: problems.append((ln, msg)))
