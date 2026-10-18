@@ -6,9 +6,10 @@ end_of_line = lf
 insert_final_newline = true
 trim_trailing_whitespace = true
 
-# XS follows the base game's convention of 3-space indents.
+# XS is tab-indented, three columns wide. The shipped base-game scripts use
+# 3-space indents instead; the difference is cosmetic.
 [*.xs]
-indent_style = space
+indent_style = tab
 indent_size = 3
 
 [*.{xml,personality}]
