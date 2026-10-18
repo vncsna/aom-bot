@@ -37,9 +37,19 @@ A bad `case` aborts its whole function (error `0047`), and then the whole file
 
 ## Functions
 
+- **A function must be declared before its first use.** XS resolves symbols in a single
+  pass, so calling something defined further down the file fails with
+  `Error 0310: invalid symbol lookup for '<name>'`. Keep callees above callers.
+- **Forward declarations** exist for when you cannot: declare a `mutable` stub with a body,
+  then define the real function later. This is how `core/core.xs` declares `preInit()` and
+  `postInit()` before the engine calls them.
+
+  ```c
+  mutable void setupPatrolPlans(vector gatherPoint = cInvalidVector) {}
+  ```
+
 - **Default arguments are supported**: `void build(int type = -1, vector at = cInvalidVector)`.
 - **`ref` parameters** pass by reference: `void pick(ref int techID)`.
-- **Definition order does not matter** — a function may call one defined further down.
 - **Lambdas** take the form `[](ref StrategyData data) -> bool { … };`.
 
 ## Types
@@ -94,6 +104,9 @@ seconds.
 |---|---|---|
 | `0230` | `expected 'case' or 'default' and found 'break'` | A `switch` case body is not braced. |
 | `0221` | `parseSwitch failed` | Follows `0230`. |
+| `0310` | `invalid symbol lookup for '<name>'` | A function is called before it is declared. |
+| `0052` | `could not parse the code for THEN block` | Follows `0310` inside an `if` body. |
+| `0135` | `parseConditionDecl failed` | Follows `0310` inside a condition. |
 | `0047` | `could not parse the code for '<function>'` | Follows a syntax error inside that function. |
 | — | `could not compile file 'custom_bot.xs'` | Follows any of the above; the bot does not load. |
 
@@ -103,7 +116,8 @@ The engine compiles XS only at match start and reports **one error at a time**, 
 costs a full game launch to find. Check these first:
 
 1. Every `switch` case body is braced.
-2. Braces, parentheses and brackets balance.
-3. Every engine function, constant and global exists — cross-check against the base-game
+2. Every function is defined before its first use (or declared `mutable`).
+3. Braces, parentheses and brackets balance.
+4. Every engine function, constant and global exists — cross-check against the base-game
    scripts and the generated `temp/Logs/MythAIConstantsPlayer1.txt`.
-4. Tabs for indentation, no trailing whitespace (see `.editorconfig`).
+5. Tabs for indentation, no trailing whitespace (see `.editorconfig`).
