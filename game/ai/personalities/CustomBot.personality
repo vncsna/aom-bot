@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<AI>
+    <script>custom_bot</script>
+    <imagePath>shared/static_color/personalities/personality_agressive.png</imagePath>
+    <nameID>STR_AI_PERS_ATTACKER</nameID>
+    <descriptionID>STR_AI_PERS_ATTACKER_DESC</descriptionID>
+    <infoPopupTextID>STR_SELECT_PERSONALITY_INFO_MESSAGE_ATTACKER</infoPopupTextID>
+    <canBeRandomed>true</canBeRandomed>
+    <chatset>Shared</chatset>
+    <playerNames>
+        <nameID culture="Greek">STR_CITY_GREEK_ATHENS</nameID>
+        <nameID culture="Egyptian">STR_CITY_EGYPTIAN_MEMPHIS</nameID>
+        <nameID culture="Norse">STR_CITY_NORSE_NIDAROS</nameID>
+        <nameID culture="Atlantean">STR_CITY_ATLANTEAN_KASTOR</nameID>
+    </playerNames>
+</AI>
