@@ -1,4 +1,4 @@
-# AoM Retold — Custom Bot
+## AoM Retold — Custom Bot
 
 A custom AI bot mod for **Age of Mythology: Retold** (Steam App ID `1934680`), written
 in **XS** — the BANG engine's built-in scripting language.
@@ -26,7 +26,6 @@ the symlinks are absolute. Then pick **CustomBot** as an AI opponent in the skir
 - [`AGENTS.md`](AGENTS.md) — setup, file locations, engine behaviour and references.
 - [`docs/ai-architecture.md`](docs/ai-architecture.md) — how bot behavior is expressed.
 - [`docs/custom-bot-design.md`](docs/custom-bot-design.md) — the bot's design and goal.
-- Changes are tracked in the commit history.
 
 ## Legal
 
