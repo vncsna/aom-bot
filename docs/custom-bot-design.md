@@ -26,7 +26,10 @@ per the official `How-to create your own skirmish AI.pdf`, the name in
 `personalities_mods.xml` generates the script constant (`CustomBot` → `cPersonalityCustomBot`),
 so we can never satisfy `cPersonalityCurrent == cPersonalityConqueror`. Because the bot
 replaces the strategy system with `setOverrideStrategy`, the Conqueror tuning is
-implemented directly instead.
+implemented directly instead. The generated index also makes the stock name lookup warn at
+startup (`Unknown cPersonalityCurrent.`); that is harmless unless `aiDebugScript` is on,
+where the warning becomes a debugger breakpoint that freezes the bot — see the AI Debugger
+Config section in [`AGENTS.md`](../AGENTS.md).
 
 ## Architecture
 

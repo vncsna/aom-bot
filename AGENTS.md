@@ -93,15 +93,22 @@ in the repo propagate instantly without copying. `scripts/install.sh` creates it
 Contents:
 ```
 aiDebug
-aiDebugScript
 AIvsAI
 ```
 `aiDebug` enables the debug menu (`Alt+Shift+Q`) and XS debugger (`Alt+Shift+D`).
-`aiDebugScript` causes XS warnings to trigger a debugger breakpoint automatically.
 `AIvsAI` replaces player 1 with an AI, so the bot can play another bot unattended — the
 bot's log then lands in `MythRetoldAIOutputPlayer1.txt`. Watch with `Ctrl+F1` (player 1)
 and `Ctrl+F2` (player 2). Configs are read at startup only, so restart the game after
 changing this file.
+
+**Don't enable `aiDebugScript` for bot runs.** It makes the XS debugger breakpoint on any
+XS warning, and a custom personality always trips one: `cPersonalityCurrent` is the custom
+personality's index (`14` for `CustomBot`, per `MythAIConstantsPlayer<N>.txt`), which no
+case in the base game's `getCurrentPersonalityName()` matches, so it calls `aiEchoWarning`
+("Unknown cPersonalityCurrent.") during startup. The breakpoint suspends the bot's script
+there, so the bot does nothing for the whole match and its log stops on that line.
+`aiHideWarningEchoes` hides the text but not the breakpoint. Use `aiDebugScript` only while
+debugging the script, and resume the debugger instead of closing it.
 
 ---
 
