@@ -23,6 +23,12 @@ const int cCustomRetreatLossPercent = 50;
 const int cCustomRetreatLossWindow = 45;
 const int cCustomRetreatEnemyRatioPercent = 150;
 
+// A raid is a small group, so a whole base garrison counts as "outnumbered" and
+// calls it off before it lands. Judge a raid only on the troops sitting on its
+// target, and prefer the target the enemy is not sitting on.
+const float cCustomRaidTargetRadius = 30.0;
+const float cCustomRaidAbortRadius = 25.0;
+
 // The enemy's Titan: anything we send at a base while it is out feeds it, so call
 // off an attack when it is this close, and only commit again with an army that
 // can actually take one on.
@@ -152,7 +158,16 @@ int customNextTowerUpgrade()
 	return -1;
 }
 
-// Prefer an enemy drop site to hit their economy; fall back to any villager.
+// How much enemy military is sitting on a point. The bot sees the whole map, so
+// it never has to scout to know this.
+int customEnemyMilitaryNear(vector location, float radius = 60.0)
+{
+	return getUnitCountByLocation(cUnitTypeLogicalTypeLandMilitary, cPlayerRelationEnemyNotGaia,
+		cUnitStateAlive, location, radius);
+}
+
+// Prefer the enemy drop site the enemy can least defend; fall back to any
+// villager. The bot counts the troops at each one without scouting them.
 int customFindRaidTarget(int target = -1)
 {
 	int[] dropSites = new int(4, -1);
@@ -160,13 +175,25 @@ int customFindRaidTarget(int target = -1)
 	dropSites[1] = cUnitTypeGranary;
 	dropSites[2] = cUnitTypeLumberCamp;
 	dropSites[3] = cUnitTypeOxCartBuilding;
+	int bestUnit = -1;
+	int bestGuard = 0;
 	for (int i = 0; i < dropSites.size(); i++)
 	{
 		int unitID = getUnit(dropSites[i], target, cUnitStateAlive);
-		if (unitID != -1)
+		if (unitID == -1)
 		{
-			return unitID;
+			continue;
 		}
+		int guard = customEnemyMilitaryNear(kbUnitGetPosition(unitID), cCustomRaidTargetRadius);
+		if (bestUnit == -1 || guard < bestGuard)
+		{
+			bestUnit = unitID;
+			bestGuard = guard;
+		}
+	}
+	if (bestUnit != -1)
+	{
+		return bestUnit;
 	}
 	return getUnit(cUnitTypeAbstractVillager, target, cUnitStateAlive);
 }
@@ -213,8 +240,13 @@ bool customAttackIsLosing(int planID = -1, int ourCount = 0, int ourPop = 0, int
 			return true;
 		}
 	}
-	int enemyCount = getUnitCountByLocation(cUnitTypeLogicalTypeLandMilitary, cPlayerRelationEnemyNotGaia,
-		cUnitStateAlive, planLoc, 60.0);
+	// Judge a raid on the troops on its target, not on the base's whole garrison.
+	float checkRadius = 60.0;
+	if (planID == gCustomRaidPlanID)
+	{
+		checkRadius = cCustomRaidAbortRadius;
+	}
+	int enemyCount = customEnemyMilitaryNear(planLoc, checkRadius);
 	int enemyRatio = (enemyCount * 100) / ourCount;
 	if (enemyCount >= 3 && enemyRatio > cCustomRetreatEnemyRatioPercent)
 	{
