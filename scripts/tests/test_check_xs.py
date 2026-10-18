@@ -29,6 +29,11 @@ CASES = {
         "used before it is defined",
         False,
     ),
+    "array function called before definition": (
+        "void caller()\n{\n\tint[] ids = helper();\n}\n\nint[] helper()\n{\n\treturn ids;\n}\n",
+        "used before it is defined",
+        False,
+    ),
     "arithmetic left of a comparison": (
         "void foo(int a, int b)\n{\n\tif (a > 0 && a * 100 >= b * 5)\n\t{\n\t}\n}\n",
         "error 0308",

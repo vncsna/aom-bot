@@ -38,13 +38,13 @@ KEYWORDS = {
     "true", "false", "size", "add",
 }
 
-FUNC_DEF = re.compile(r"^\s*(mutable\s+)?(?:void|bool|int|float|string|vector|Strategy)\s+(\w+)\s*\(")
+FUNC_DEF = re.compile(r"^\s*(mutable\s+)?(?:void|bool|int|float|string|vector|Strategy)(?:\[\])?\s+(\w+)\s*\(")
 CALL = re.compile(r"\b([a-z]\w*)\s*\(")
 CASE = re.compile(r"^\s*case\b.*:\s*$")
 CASE_INLINE = re.compile(r"^\s*case\b.*:\s*\S")
 RULE_DEF = re.compile(r"^\s*rule\s+(\w+)")
 RULE_USE = re.compile(r'xs(?:EnableRule|DisableRule|IsRuleEnabled|RuleIgnoreIntervalOnce)\(\s*"(\w+)"')
-GLOBAL_DEF = re.compile(r"^\s*(?:bool|int|float|string|vector)\s+(g\w+)\s*=")
+GLOBAL_DEF = re.compile(r"^\s*(?:bool|int|float|string|vector)(?:\[\])?\s+(g\w+)\s*=")
 CONST_DEF = re.compile(r"^\s*(?:extern\s+)?const\s+\w+\s+(c\w+)\s*=")
 EXTERN_DECL = re.compile(r"^\s*extern\s+[\w\[\]]+\s+(\w+)")
 # Arithmetic on the left of a comparison, with no parenthesis before it.
