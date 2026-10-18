@@ -2,10 +2,10 @@
 
 <AI>
     <script>custom_bot</script>
-    <imagePath>shared/static_color/personalities/personality_agressive.png</imagePath>
-    <nameID>STR_AI_PERS_ATTACKER</nameID>
-    <descriptionID>STR_AI_PERS_ATTACKER_DESC</descriptionID>
-    <infoPopupTextID>STR_SELECT_PERSONALITY_INFO_MESSAGE_ATTACKER</infoPopupTextID>
+    <imagePath>shared/static_color/personalities/personality_conqueror.png</imagePath>
+    <nameID>STR_AI_PERS_CONQUEROR</nameID>
+    <descriptionID>STR_AI_PERS_CONQUEROR_DESC</descriptionID>
+    <infoPopupTextID>STR_SELECT_PERSONALITY_INFO_MESSAGE_CONQUEROR</infoPopupTextID>
     <canBeRandomed>true</canBeRandomed>
     <chatset>Shared</chatset>
     <playerNames>
