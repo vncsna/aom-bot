@@ -8,9 +8,9 @@ authoritative sources for all relevant documentation.
 
 ## Project Overview
 
-A custom AI bot mod for **Age of Mythology: Retold** (Steam App ID `1934680`), running on
-Linux via **Steam Proton** (Wine). The bot is authored in **XS** (eXternal Scripting),
-the BANG engine's built-in scripting language, and is installed as a **local mod**.
+A win-at-all-costs AI bot mod for **Age of Mythology: Retold** (Steam App ID `1934680`),
+running on Linux via **Steam Proton** (Wine). The bot is authored in **XS** (eXternal
+Scripting), the BANG engine's built-in scripting language, and is installed as a **local mod**.
 
 ---
 
@@ -102,8 +102,8 @@ and `Ctrl+F2` (player 2). Configs are read at startup only, so restart the game 
 changing this file.
 
 **Don't enable `aiDebugScript` for bot runs.** It makes the XS debugger breakpoint on any
-XS warning, and a custom personality always trips one: `cPersonalityCurrent` is the custom
-personality's index (`14` for `GodBot`, per `MythAIConstantsPlayer<N>.txt`), which no
+XS warning, and a modded personality always trips one: `cPersonalityCurrent` is the
+GodBot personality's index (`14` for `GodBot`, per `MythAIConstantsPlayer<N>.txt`), which no
 case in the base game's `getCurrentPersonalityName()` matches, so it calls `aiEchoWarning`
 ("Unknown cPersonalityCurrent.") during startup. The breakpoint suspends the bot's script
 there, so the bot does nothing for the whole match and its log stops on that line.
@@ -217,8 +217,8 @@ expressed — the strategy system, `StrategyData` policy, attack waves, defend p
 rules, build orders and overrides — with a translation cheat-sheet for turning plain
 behavior descriptions into code. Start here when adding functionality.
 
-[`docs/god-bot-design.md`](docs/god-bot-design.md) describes how the custom bot is
-put together and why — its goal, architecture and behaviour.
+[`docs/god-bot-design.md`](docs/god-bot-design.md) describes how the god bot is put
+together and why — its goal, the powers it exploits, its architecture and behaviour.
 
 ### XS Language Notes
 [`docs/xs-syntax.md`](docs/xs-syntax.md) records the XS constructs the bot uses and the

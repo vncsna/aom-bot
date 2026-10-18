@@ -1,11 +1,12 @@
 ## AoM Retold — God Bot
 
-A custom AI bot mod for **Age of Mythology: Retold** (Steam App ID `1934680`), written
-in **XS** — the BANG engine's built-in scripting language.
+A win-at-all-costs AI bot mod for **Age of Mythology: Retold** (Steam App ID `1934680`),
+written in **XS** — the BANG engine's built-in scripting language.
 
-It installs as a **local mod** and appears in the skirmish AI dropdown as `GodBot`.
-The goal is a personality that wins 1v1 against the stock personalities on the same maps
-at the same difficulty; see [`docs/god-bot-design.md`](docs/god-bot-design.md) for
+It installs as a **local mod** and appears in the skirmish AI dropdown as `GodBot`. The
+goal is simple: **always win** a 1v1 against the stock personalities, using powers a human
+player does not have — it reads the whole board without scouting. See
+[`docs/god-bot-design.md`](docs/god-bot-design.md) for the goal, the powers it exploits and
 how it is built.
 
 ## Installing
