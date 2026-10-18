@@ -23,6 +23,12 @@ const int cCustomRetreatLossPercent = 50;
 const int cCustomRetreatLossWindow = 45;
 const int cCustomRetreatEnemyRatioPercent = 150;
 
+// The enemy's Titan: anything we send at a base while it is out feeds it, so call
+// off an attack when it is this close, and only commit again with an army that
+// can actually take one on.
+const float cCustomTitanFleeRadius = 45.0;
+const int cCustomTitanHuntArmyPop = 60;
+
 // Decisive push: once we are clearly ahead, attack on a fast cadence instead.
 const int cCustomPushArmyPop = 40;   // military pop required before we commit
 const int cCustomPushInterval = 90;  // seconds between attacks while pushing
@@ -165,9 +171,38 @@ int customFindRaidTarget(int target = -1)
 	return getUnit(cUnitTypeAbstractVillager, target, cUnitStateAlive);
 }
 
-// Is this attack bleeding out, or outnumbered where it stands?
+// The enemy's Titan, if one is alive.
+int customEnemyTitanID()
+{
+	int target = aiGetMostHatedPlayerID();
+	if (target == -1)
+	{
+		return -1;
+	}
+	return getUnit(cUnitTypeAbstractTitan, target, cUnitStateAlive);
+}
+
+// A Titan counts as one enemy unit, so the outnumbered check never sees it coming.
+bool customTitanNear(vector location)
+{
+	return getUnitCountByLocation(cUnitTypeAbstractTitan, cPlayerRelationEnemyNotGaia,
+		cUnitStateAlive, location, cCustomTitanFleeRadius) > 0;
+}
+
+// Is this attack bleeding out, outnumbered, or standing in front of a Titan?
 bool customAttackIsLosing(int planID = -1, int ourCount = 0, int ourPop = 0, int samplePop = 0)
 {
+	vector planLoc = aiPlanGetLocation(planID);
+	if (planLoc == cInvalidVector)
+	{
+		return false;
+	}
+	// A Titan kills an army faster than the loss window can notice it.
+	if (customTitanNear(planLoc) == true)
+	{
+		aiEcho("[CustomBot] Retreating " + aiPlanGetName(planID) + ": enemy Titan in the field.");
+		return true;
+	}
 	if (samplePop > 0)
 	{
 		int lostPop = samplePop - ourPop;
@@ -177,11 +212,6 @@ bool customAttackIsLosing(int planID = -1, int ourCount = 0, int ourPop = 0, int
 			aiEcho("[CustomBot] Retreating " + aiPlanGetName(planID) + ": lost " + lostPop + " of " + samplePop + " pop.");
 			return true;
 		}
-	}
-	vector planLoc = aiPlanGetLocation(planID);
-	if (planLoc == cInvalidVector)
-	{
-		return false;
 	}
 	int enemyCount = getUnitCountByLocation(cUnitTypeLogicalTypeLandMilitary, cPlayerRelationEnemyNotGaia,
 		cUnitStateAlive, planLoc, 60.0);
@@ -515,6 +545,21 @@ void customManageWonderAndTitanGate(ref StrategyData data)
 	customReleaseTitanGate();
 }
 
+// Feeding an army to a Titan just loses the army. While one is on the field and we
+// cannot answer it — no Titan of our own, no army big enough to kill it — hold the
+// army at home, where the towers and our own gate are, and stop raiding into it.
+void customApplyTitanPolicy(ref StrategyData data)
+{
+	if (customEnemyTitanID() == -1)
+	{
+		data.setFlag(cStrategyFlagCanAttack, true);
+		return;
+	}
+	bool canKillIt = kbUnitCount(cUnitTypeAbstractTitan, cMyID, cUnitStateAlive) >= 1
+		|| aiGetCurrentMilitaryPop() >= cCustomTitanHuntArmyPop;
+	data.setFlag(cStrategyFlagCanAttack, canKillIt);
+}
+
 //==============================================================================
 // Strategy
 //==============================================================================
@@ -560,6 +605,7 @@ Strategy customBotStrategy()
 		}
 		customManageTinyMapHousing(data);
 		customManageWonderAndTitanGate(data);
+		customApplyTitanPolicy(data);
 		return true;
 	};
 
@@ -679,16 +725,15 @@ minInterval 10
 	aiPlanSetEventHandler(gTowerOffensiveResearchPlanID, cPlanEventStateChange, "resetOffensiveTowerResearchPlan");
 }
 
-// Pull back each attack that is bleeding out or outnumbered on the spot. Every
-// attack is judged on its own, so a failing raid never recalls the main army.
+// Pull back each attack that is bleeding out, outnumbered on the spot, or standing
+// in front of a Titan. Every attack is judged on its own, so a failing raid never
+// recalls the main army. Retreating is defensive, so this keeps running while
+// customApplyTitanPolicy holds attacks back: an army already in the field still
+// comes home.
 rule customRetreatMonitor
 inactive
 minInterval 10
 {
-	if (checkStrategyFlag(cStrategyFlagCanAttack) == false)
-	{
-		return;
-	}
 	int now = xsGetTime();
 	int[] planIDs = new int(0, -1);
 	int[] samplePops = new int(0, -1);
@@ -807,6 +852,11 @@ minInterval 30
 	{
 		enemyAge = kbPlayerGetAge(target);
 	}
+	int enemyTitan = 0;
+	if (customEnemyTitanID() != -1)
+	{
+		enemyTitan = 1;
+	}
 	string state = "hold";
 	if (gCustomPushing == true)
 	{
@@ -825,6 +875,7 @@ minInterval 30
 		+ " wood=" + xsFloatToInt(kbResourceGet(cResourceWood))
 		+ " gold=" + xsFloatToInt(kbResourceGet(cResourceGold))
 		+ " enemyAge=" + enemyAge
+		+ " enemyTitan=" + enemyTitan
 		+ " state=" + state);
 }
 

@@ -112,6 +112,14 @@ attack back when either a large share of it dies within the window, or the enemy
 spot clearly outnumbers it. Pulling back the main army also pushes the next attack out, so
 it regroups rather than re-committing; a failed raid is simply called off.
 
+**Never feed a Titan.** A Titan is one unit, so the outnumbered check never sees it, and it
+kills an army faster than the loss window notices. `customTitanNear` calls off any attack
+standing within `cCustomTitanFleeRadius` of one, and `customApplyTitanPolicy` holds attacks
+and raids entirely while an enemy Titan is alive and we cannot answer it — no Titan of our
+own and less than `cCustomTitanHuntArmyPop` military pop. The army waits at home with the
+towers and our own gate instead of walking into it; once the army is big enough, or our own
+Titan is out, attacks resume on their normal rhythm.
+
 **Raid the economy otherwise.** When we cannot commit to a real attack and have spare army,
 `customRaidMonitor` sends a small group at an enemy drop site (falling back to a villager)
 to keep the pressure on without risking the main force.
@@ -121,7 +129,7 @@ to keep the pressure on without risking the main force.
 `customTelemetryMonitor` emits one line every 30s:
 
 ```
-[CBOT] t=… age=… vills=… pop=cur/cap army=… food=… wood=… gold=… enemyAge=… state=hold|push|defend
+[CBOT] t=… age=… vills=… pop=cur/cap army=… food=… wood=… gold=… enemyAge=… enemyTitan=0|1 state=hold|push|defend
 ```
 
 It lands in the per-player AI log, `temp/Logs/MythRetoldAIOutputPlayer<N>.txt` (UTF-16).

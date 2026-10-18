@@ -321,7 +321,7 @@ Use this to resolve numeric constant IDs (e.g. what `cUnitTypeHoplite` resolves 
 `customTelemetryMonitor` in `custom_bot.xs` logs one metrics line every 30 seconds:
 
 ```
-[CBOT] t=… age=… vills=… pop=cur/cap army=… food=… wood=… gold=… enemyAge=… state=hold|push|defend
+[CBOT] t=… age=… vills=… pop=cur/cap army=… food=… wood=… gold=… enemyAge=… enemyTitan=0|1 state=hold|push|defend
 ```
 
 Where it lands (under the game's user data, `…/Games/Age of Mythology Retold/`):

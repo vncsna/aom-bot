@@ -18,7 +18,7 @@ import sys
 from pathlib import Path
 
 MARKER = "[CBOT]"
-COLUMNS = ["t", "age", "vills", "pop", "army", "food", "wood", "gold", "enemyAge", "state"]
+COLUMNS = ["t", "age", "vills", "pop", "army", "food", "wood", "gold", "enemyAge", "enemyTitan", "state"]
 
 
 def read_lines(path):
