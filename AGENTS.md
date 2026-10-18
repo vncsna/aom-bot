@@ -29,29 +29,21 @@ the BANG engine's built-in scripting language, and is installed as a **local mod
   `C:\users\steamuser\Games\Age of Mythology Retold\<steam-id>\`
 - **User Data Dir (Linux path):**
   `~/.local/share/Steam/steamapps/compatdata/1934680/pfx/drive_c/users/steamuser/Games/Age of Mythology Retold/<steam-id>/`
-- **Steam ID:** `<steam-id>`
+- **Steam ID:** `<steam-id>` is your own Steam account ID. Every user-data path below
+  contains it, so substitute your own when reproducing these locations.
 
 ---
 
 ## Canonical File Locations (Single Source of Truth)
 
-All bot files live exclusively inside the local mod directory. Do **not** duplicate or
-copy files elsewhere. The scenario editor gets a symlink only.
+This repository **is** the mod source. The live mod directory inside the Steam Proton
+prefix holds nothing but symlinks back into this checkout, so edits here reach the game
+immediately — nothing is copied or duplicated. Run `./install.sh` to create the mod
+directory and wire those symlinks.
 
-### Local Mod Root
+### Repository Root (source of truth)
 ```
-~/.local/share/Steam/steamapps/compatdata/1934680/pfx/drive_c/users/steamuser/
-  Games/Age of Mythology Retold/<steam-id>/mods/local/CustomBot/
-```
-
-Convenience symlink (also usable as VS Code workspace root):
-```
-~/AoM_Retold_CustomBot/  →  (symlink to above)
-```
-
-### Mod File Tree
-```
-CustomBot/
+<repo>/                                  ← this checkout
 ├── game/
 │   └── ai/
 │       ├── custom_bot.xs                ← Main entry-point script (edit this)
@@ -62,12 +54,20 @@ CustomBot/
     └── settings.json                   ← XS coding standards (tab=3, rulers=130)
 ```
 
+### Local Mod Root (symlinks → repo)
+```
+~/.local/share/Steam/steamapps/compatdata/1934680/pfx/drive_c/users/steamuser/
+  Games/Age of Mythology Retold/<steam-id>/mods/local/CustomBot/
+```
+The symlinks are absolute, so a moved or re-cloned checkout must be relinked by
+re-running `install.sh`.
+
 ### Scenario Editor Symlink
 ```
-…/<steam-id>/scenario/custom_bot.xs  →  symlink to mod/game/ai/custom_bot.xs
+…/<steam-id>/scenario/custom_bot.xs  →  symlink to repo game/ai/custom_bot.xs
 ```
 The Scenario Editor file picker opens `…/scenario/` by default. The symlink means edits
-in VS Code propagate instantly without copying.
+in the repo propagate instantly without copying. `install.sh` creates it too.
 
 ### AI Debugger Config
 ```
@@ -183,11 +183,9 @@ gAttackWave.setPlayerToAttack(1);
 ## Reference Documentation
 
 ### Athens Syscalls (XS API)
-Full Doxygen HTML reference for all AI/KB/XS syscalls:
-```
-~/Documents/personal/aom-bot/athens-syscalls/index.html
-```
-Open in a browser. Key files:
+Full Doxygen HTML reference for all AI/KB/XS syscalls. **Not tracked in this repo** — it is
+extracted from the game's own `doxygen_retail.7z` and excluded via `.gitignore`. Extract
+it locally (e.g. to `./athens-syscalls/`) and open `index.html` in a browser. Key files:
 - `globals_func.html` — All available XS functions (alphabetical)
 - `aifuncs_8cpp.html` — AI plan and unit management functions
 - `aiplans_8cpp.html` — Plan creation and configuration
