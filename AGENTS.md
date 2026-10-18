@@ -342,7 +342,9 @@ There is no XS file-write syscall, so `aiEcho` logging is the only telemetry cha
 To let an agent reason about results later, capture per-match metadata:
 
 - **Manual results sheet** — cheapest, works today: date, map, size, difficulty, our civ,
-  opponent personality, opponent civ, result, duration, notes.
+  opponent personality, opponent civ, result, duration, notes. This is
+  [`docs/god-bot-record.md`](docs/god-bot-record.md), which also notes what each change was
+  meant to do; add a row there after a match.
 - **Telemetry log** — richest: run `scripts/archive_run.py [notes…]` right after a match.
   It keeps the bot's own `[GodBot]` events and `[GBOT]` telemetry and writes them to
   `runs/<stamp>-<map>.log`, under a header naming the map and both players (read from

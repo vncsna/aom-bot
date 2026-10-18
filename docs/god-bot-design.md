@@ -160,7 +160,8 @@ that happens to be garrisoned elsewhere does not call it off before it lands.
 It lands in the per-player AI log, `temp/Logs/MythRetoldAIOutputPlayer<N>.txt` (UTF-16).
 `scripts/parse_ai_log.py` turns it into a per-run summary. This is the feedback loop that
 turns the tuning constants from guesses into measurements; the log locations and the
-run-metadata options are documented in [`../AGENTS.md`](../AGENTS.md).
+run-metadata options are documented in [`../AGENTS.md`](../AGENTS.md). Results and what each
+change was meant to do are summarised in [`god-bot-record.md`](god-bot-record.md).
 
 ## Tuning
 

@@ -29,6 +29,7 @@ the symlinks are absolute. Then pick **GodBot** as an AI opponent in the skirmis
 - [`docs/xs-syntax.md`](docs/xs-syntax.md) — XS syntax notes and parser traps.
 - [`docs/god-bot-design.md`](docs/god-bot-design.md) — the bot's design and goal.
 - [`docs/god-bot-minor-gods.md`](docs/god-bot-minor-gods.md) — the minor-god picks and matchups.
+- [`docs/god-bot-record.md`](docs/god-bot-record.md) — results and what each change was meant to do.
 
 ## Legal
 
