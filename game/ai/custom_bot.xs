@@ -403,6 +403,16 @@ bool customShouldPush()
 	return false;
 }
 
+void customPushHouseBuild()
+{
+	if (aiPlanGetNumberByTypeAndVariableIntValue(cPlanBuild, cBuildPlanBuildingTypeID, gHouseUnit) > 0)
+	{
+		return;
+	}
+	int baseID = getRandomTownCenterBaseID();
+	createSimpleBuildPlan(gHouseUnit, 1, 96, gEconomicBuildingsCategoryID, baseID, 1);
+}
+
 // On Tiny maps we want houses before the Armory: hold the Armory until the
 // Temple is up and we have a comfortable pop buffer, pushing houses meanwhile.
 void customManageTinyMapHousing(ref StrategyData data)
@@ -430,31 +440,6 @@ void customManageTinyMapHousing(ref StrategyData data)
 		return;
 	}
 	data.setFlag(cStrategyFlagBuildArmory, true);
-}
-
-void customPushHouseBuild()
-{
-	if (aiPlanGetNumberByTypeAndVariableIntValue(cPlanBuild, cBuildPlanBuildingTypeID, gHouseUnit) > 0)
-	{
-		return;
-	}
-	int baseID = getRandomTownCenterBaseID();
-	createSimpleBuildPlan(gHouseUnit, 1, 96, gEconomicBuildingsCategoryID, baseID, 1);
-}
-
-// While we're being pushed, don't start or keep a Wonder, and postpone an
-// uncommitted Titan Gate. Resources fall back to the normal build rules.
-void customManageWonderAndTitanGate(ref StrategyData data)
-{
-	if (customUnderAttack() == true)
-	{
-		data.setFlag(cStrategyFlagBuildWonder, false);
-		customCancelBuildPlans(cUnitTypeWonder);
-		customHoldTitanGate();
-		return;
-	}
-	data.setFlag(cStrategyFlagBuildWonder, true);
-	customReleaseTitanGate();
 }
 
 void customHoldTitanGate()
@@ -491,6 +476,21 @@ void customReleaseTitanGate()
 	}
 	xsEnableRule("titanGateConstructionMonitor");
 	xsRuleIgnoreIntervalOnce("titanGateConstructionMonitor");
+}
+
+// While we're being pushed, don't start or keep a Wonder, and postpone an
+// uncommitted Titan Gate. Resources fall back to the normal build rules.
+void customManageWonderAndTitanGate(ref StrategyData data)
+{
+	if (customUnderAttack() == true)
+	{
+		data.setFlag(cStrategyFlagBuildWonder, false);
+		customCancelBuildPlans(cUnitTypeWonder);
+		customHoldTitanGate();
+		return;
+	}
+	data.setFlag(cStrategyFlagBuildWonder, true);
+	customReleaseTitanGate();
 }
 
 //==============================================================================
