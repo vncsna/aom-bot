@@ -1,0 +1,11 @@
+# --- Proprietary Age of Mythology: Retold material -------------------------
+# Extracted from the game's `doxygen_retail.7z`. Copyright of the game's
+# developer/publisher; not licensed for redistribution.
+athens-syscalls/
+doxygen_retail.7z
+
+# Binary scenario files use a game-owned format and embed game assets.
+*.mythscn
+
+# --- OS / editor noise -----------------------------------------------------
+.DS_Store
