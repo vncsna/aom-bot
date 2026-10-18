@@ -700,7 +700,8 @@ minInterval 10
 	if (gCustomRetreatSamplePop > 0 && (now - gCustomRetreatSampleTime) <= cCustomRetreatLossWindow)
 	{
 		int lostPop = gCustomRetreatSamplePop - ourPop;
-		if (lostPop > 0 && lostPop * 100 >= gCustomRetreatSamplePop * cCustomRetreatLossPercent)
+		int lostPercent = (lostPop * 100) / gCustomRetreatSamplePop;
+		if (lostPercent >= cCustomRetreatLossPercent)
 		{
 			aiEcho("[CustomBot] Retreating: lost " + lostPop + " of " + gCustomRetreatSamplePop + " pop.");
 			retreat = true;
@@ -710,7 +711,8 @@ minInterval 10
 	{
 		int enemyCount = getUnitCountByLocation(cUnitTypeLogicalTypeLandMilitary, cPlayerRelationEnemyNotGaia,
 			cUnitStateAlive, planLoc, 60.0);
-		if (enemyCount >= 3 && enemyCount * 100 > ourCount * cCustomRetreatEnemyRatioPercent)
+		int enemyRatio = (enemyCount * 100) / ourCount;
+		if (enemyCount >= 3 && enemyRatio > cCustomRetreatEnemyRatioPercent)
 		{
 			aiEcho("[CustomBot] Retreating: " + enemyCount + " enemies vs our " + ourCount + ".");
 			retreat = true;
