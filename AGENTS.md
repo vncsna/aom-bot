@@ -1,0 +1,269 @@
+# AGENTS.md — AoM Retold Custom Bot Project
+
+This document is the primary reference for AI agents and LLMs working on this project.
+It describes the project structure, file locations, game engine constraints, and the
+authoritative sources for all relevant documentation.
+
+---
+
+## Project Overview
+
+A custom AI bot mod for **Age of Mythology: Retold** (Steam App ID `1934680`), running on
+Linux via **Steam Proton** (Wine). The bot is authored in **XS** (eXternal Scripting),
+the BANG engine's built-in scripting language, and is installed as a **local mod**.
+
+---
+
+## Platform Notes (Immutable)
+
+- **OS:** Linux
+- **Runtime:** Steam Proton (Wine). The game sees a Windows filesystem emulated via Wine
+  prefix under `~/.local/share/Steam/steamapps/compatdata/1934680/pfx/`.
+- **Drive Mapping (Proton):**
+  - `C:` → `…/compatdata/1934680/pfx/drive_c/`
+  - `S:` → `~/.local/share/Steam/` (Steam install root)
+  - `Z:` → `/` (Linux root)
+- **Game Install Dir (Linux):**
+  `~/.local/share/Steam/steamapps/common/Age of Mythology Retold/`
+- **User Data Dir (Proton/Windows path):**
+  `C:\users\steamuser\Games\Age of Mythology Retold\<steam-id>\`
+- **User Data Dir (Linux path):**
+  `~/.local/share/Steam/steamapps/compatdata/1934680/pfx/drive_c/users/steamuser/Games/Age of Mythology Retold/<steam-id>/`
+- **Steam ID:** `<steam-id>`
+
+---
+
+## Canonical File Locations (Single Source of Truth)
+
+All bot files live exclusively inside the local mod directory. Do **not** duplicate or
+copy files elsewhere. The scenario editor gets a symlink only.
+
+### Local Mod Root
+```
+~/.local/share/Steam/steamapps/compatdata/1934680/pfx/drive_c/users/steamuser/
+  Games/Age of Mythology Retold/<steam-id>/mods/local/CustomBot/
+```
+
+Convenience symlink (also usable as VS Code workspace root):
+```
+~/AoM_Retold_CustomBot/  →  (symlink to above)
+```
+
+### Mod File Tree
+```
+CustomBot/
+├── game/
+│   └── ai/
+│       ├── custom_bot.xs                ← Main entry-point script (edit this)
+│       └── personalities/
+│           ├── CustomBot.personality    ← Points game engine to custom_bot.xs
+│           └── personalities_mods.xml  ← Registers "CustomBot" in skirmish dropdown
+└── .vscode/
+    └── settings.json                   ← XS coding standards (tab=3, rulers=130)
+```
+
+### Scenario Editor Symlink
+```
+…/<steam-id>/scenario/custom_bot.xs  →  symlink to mod/game/ai/custom_bot.xs
+```
+The Scenario Editor file picker opens `…/scenario/` by default. The symlink means edits
+in VS Code propagate instantly without copying.
+
+### AI Debugger Config
+```
+…/<steam-id>/config/user.cfg
+```
+Contents:
+```
+aiDebug
+aiDebugScript
+```
+`aiDebug` enables the debug menu (`Alt+Shift+Q`) and XS debugger (`Alt+Shift+D`).
+`aiDebugScript` causes XS warnings to trigger a debugger breakpoint automatically.
+
+---
+
+## Test Scenarios
+
+Located in `…/<steam-id>/scenario/`:
+- `ai_test_map.mythscn` — Copy of the user's blank test map.
+- `campaign_test_map.mythscn` — Copy of `fott02.mythscn` (populated skirmish map).
+- `~testing.mythscn` — Auto-saved editor scratch file (created by the game engine).
+
+`.mythscn` files are **binary** (magic header `l33t`, zlib-compressed chunk stream).
+They are **not XML**. Create/edit them only via the in-game Scenario Editor.
+
+---
+
+## XS Script Architecture (Immutable Engine Behaviour)
+
+The BANG engine calls XS scripts in the following order on match start:
+
+```
+Game Engine
+  └─ loads CustomBot.personality  →  reads <script>custom_bot</script>
+       └─ custom_bot.xs           →  include "core/main.xs"
+            └─ core/main.xs
+                 ├─ preInit()     ← USER HOOK: overrides before engine setup
+                 ├─ doStartupFlow()
+                 ├─ initXSHandlers()
+                 └─ prepareForInit()
+                      └─ postInit()  ← USER HOOK: overrides after engine setup
+```
+
+**`preInit()`** — Override global variables and set a custom strategy. Runs before any
+engine base-building or KB analysis.
+
+**`postInit()`** — Tweak live plans/settings after the engine has completed startup.
+
+Key override variables (all in `core/globals_override.xs`):
+| Variable | Type | Description |
+|---|---|---|
+| `gOverrideMaxVillagerPop` | `int` | Cap on villager count |
+| `gOverrideFarmCount` | `int` | Max farms to build |
+| `gOverrideTargetPlayerID` | `int` | Force attack a specific player |
+| `gOverrideClassicalMinorGod` | `int` | Force Classical age god choice |
+| `gOverrideHeroicMinorGod` | `int` | Force Heroic age god choice |
+| `gOverrideMythicMinorGod` | `int` | Force Mythic age god choice |
+| `gInactiveAI` | `bool` | Set true to make AI do nothing |
+| `setOverrideStrategy(fn)` | `void()` | Replace built-in strategy with custom one |
+
+---
+
+## Strategy System
+
+Strategies are defined as `Strategy` structs with two lambda functions:
+
+```c
+Strategy myStrategy()
+{
+   Strategy s;
+   s.mID   = cStrategySPCCustom;   // or cStrategyScenarioAttackWave
+   s.mAge  = cAge1;
+   s.mName = "My Strategy";
+
+   s.mInitFunc = [](ref StrategyData data) -> bool
+   {
+      data.setFlag(cStrategyFlagAutomaticEco, true);
+      data.setFlag(cStrategyFlagAutomaticVillagerTraining, true);
+      data.setFlag(cStrategyFlagBuildHouses, true);
+      data.addUnitToMaintain(cUnitTypeHoplite, 6);
+      // ...
+      return true;
+   };
+
+   s.mUpdateFunc = [](ref StrategyData data) -> bool
+   {
+      return true; // keep strategy alive
+   };
+
+   return s;
+}
+
+void myStrategySetup() { gStrategyManager.addStrategy(myStrategy()); }
+
+void preInit()
+{
+   setOverrideStrategy(myStrategySetup);
+}
+```
+
+Attack waves use `gAttackWave`:
+```c
+gAttackWave.setAttackStartTime(180);   // seconds before first attack
+gAttackWave.setAttackInterval(120);    // seconds between waves
+gAttackWave.setAttackSize(8);          // units per wave
+gAttackWave.setMaxAttackSize(16);
+gAttackWave.addAttackUnitType(cUnitTypeHoplite);
+gAttackWave.setPlayerToAttack(1);
+```
+
+---
+
+## Reference Documentation
+
+### Athens Syscalls (XS API)
+Full Doxygen HTML reference for all AI/KB/XS syscalls:
+```
+~/Documents/personal/aom-bot/athens-syscalls/index.html
+```
+Open in a browser. Key files:
+- `globals_func.html` — All available XS functions (alphabetical)
+- `aifuncs_8cpp.html` — AI plan and unit management functions
+- `aiplans_8cpp.html` — Plan creation and configuration
+
+### Official BANG Documentation PDFs
+```
+~/.local/share/Steam/steamapps/common/Age of Mythology Retold/BANG_Documentation/
+```
+Relevant files:
+- `AI documentation/How-to create your own skirmish AI.pdf`
+- `AI documentation/AI dev environment setup.pdf`
+- `AI documentation/What is allowed in AI scripts.pdf`
+- `XS documentation/XS language syntax.pdf`
+- `XS documentation/XS debugger.pdf`
+- `Config documentation/Config basics.pdf`
+
+### Base Game AI Scripts (read-only reference)
+```
+~/.local/share/Steam/steamapps/common/Age of Mythology Retold/game/ai/
+├── chairon.xs                    ← Entry point used by ALL stock skirmish personalities
+├── inactive_ai.xs                ← Example of a no-op AI
+├── core/
+│   ├── main.xs                   ← Engine startup sequence
+│   ├── globals.xs                ← Personality-dependent compile-time constants
+│   ├── globals_override.xs       ← Override hooks available to custom scripts
+│   ├── setup.xs                  ← Build order and strategy initialization
+│   ├── handlers.xs               ← XS event handlers
+│   └── …
+├── personalities/
+│   ├── personalities.xml         ← Registers stock personalities (do NOT edit)
+│   ├── attacker.personality      ← Example: aggressive personality
+│   ├── defender.personality      ← Example: defensive personality
+│   └── …
+└── campaign/
+    └── fott/                     ← Campaign AI scripts with attack wave examples
+        ├── fott02_p2.xs          ← Good example: attack waves + naval + eco flags
+        └── fott04_p3.xs          ← Good example: minimal gather-only bot
+```
+
+### VS Code XS Extension
+Installed from:
+```
+~/.local/share/Steam/steamapps/common/Age of Mythology Retold/BANG_Documentation/vscodeextension/xs.vsix
+```
+Provides hover documentation for all XS syscalls.  
+**Must be reinstalled after every game patch** (the extension does not auto-update).
+
+---
+
+## Personality Registration (Immutable Rules)
+
+- Custom personalities **cannot** be added to `game/ai/personalities/personalities.xml`
+  (base game file; overwritten by patches).
+- Use `personalities_mods.xml` in the mod folder (additive; survives patches).
+- The `<script>` tag value must match the `.xs` filename **without extension**.
+- `nameID` and `descriptionID` must reference valid string table IDs from the game's
+  internal stringtable. Using a stock ID (e.g. `STR_AI_PERS_ATTACKER`) causes the bot
+  to appear with that name in the skirmish dropdown. A custom string table mod would be
+  needed to show a truly custom name.
+- `canBeRandomed` controls whether this personality is eligible when the player selects
+  "Random" AI in the lobby.
+
+---
+
+## In-Game Debug Hotkeys
+
+| Hotkey | Action |
+|---|---|
+| `Alt + Shift + Q` | Toggle AI Debug Menu |
+| `Alt + Shift + D` | Toggle XS Debugger window |
+| `Ctrl + F1` | Switch view to Player 1 |
+| `Ctrl + F2` | Switch view to Player 2 |
+| `Ctrl + Shift + F10` | Switch view to Mother Nature (player 0) |
+
+AI constants file (generated at game launch when `aiDebug` is active):
+```
+…/<steam-id>/temp/Logs/MythAIConstantsPlayer1.txt
+```
+Use this to resolve numeric constant IDs (e.g. what `cUnitTypeHoplite` resolves to).
