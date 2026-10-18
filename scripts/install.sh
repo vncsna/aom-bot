@@ -5,7 +5,7 @@
 # symlinks back into it, so edits here reach the game without copying.
 set -euo pipefail
 
-REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 USER_DATA="$HOME/.local/share/Steam/steamapps/compatdata/1934680/pfx/drive_c/users/steamuser/Games/Age of Mythology Retold"
 
 if [[ ! -d "$USER_DATA" ]]; then
