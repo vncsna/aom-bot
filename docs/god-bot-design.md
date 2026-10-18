@@ -70,6 +70,7 @@ becomes a debugger breakpoint that freezes the bot — see the AI Debugger Confi
 | `godTowerUpgradeMonitor` | 10s | Research tower upgrades as early as possible |
 | `godRetreatMonitor` | 10s | Pull an attack back when it is bleeding out |
 | `godRaidMonitor` | 90s | Hit the enemy economy with a small group |
+| `godCavRaidMonitor` | 60s | Cavalry raid on the gold mine the enemy is working |
 | `godTelemetryMonitor` | 30s | Emit a `[GBOT]` metrics line for offline analysis |
 
 ## Behaviour
@@ -125,9 +126,10 @@ not frantic.
 **A decisive push once the bot knows it is ahead.** `godShouldPush()` fires when we are in
 Heroic or later, have a real army (`cGodPushArmyPop`), and either we are an age ahead or we
 outgun the enemy — read directly, not estimated — by `cGodPushAdvantagePercent`. While
-pushing the cadence drops to `cGodPushInterval` and raids stop so the army stays massed. A
-brief defend state only blocks *starting* a push; a push already under way continues unless
-the army itself collapses below the bar.
+pushing the cadence drops to `cGodPushInterval` and the foot raid stops so the army stays
+massed; the cavalry raid is allowed to run, because it is the one that wants the enemy army
+busy elsewhere. A brief defend state only blocks *starting* a push; a push already under way
+continues unless the army itself collapses below the bar.
 
 **Retreat when it is not working.** `godRetreatMonitor` judges each attack in the field on
 its own: its army pop over the loss window, and the enemy count around it. It pulls that
@@ -147,7 +149,15 @@ out, attacks resume on their normal rhythm.
 army, `godRaidMonitor` sends a small group at the enemy drop site with the fewest troops on
 it (falling back to a villager) to keep the pressure on without risking the main force. A
 raid is judged only on the troops sitting on its target (`cGodRaidAbortRadius`), so a base
-that happens to be garrisoned elsewhere does not call it off before it lands.
+that happens to be garrisoned elsewhere does not call it off before it lands. A site whose
+own guard is above `cGodRaidMaxGuard` is not raided at all: a party of eight cannot fight a
+garrison, and walking one in only loses the party.
+
+**Raid the gold with cavalry.** `godCavRaidMonitor` sends cavalry at the enemy gold mine
+with the most miners on it, and may run while the main army is pushing — that is exactly
+when the enemy's army is away from its mines. Cavalry outruns the defence, so this raid is
+not judged on an enemy count at all: it keeps going while the enemy is further than
+`cGodCavRaidRetreatRadius` away, and comes home once they close in.
 
 ## Telemetry
 
@@ -178,6 +188,10 @@ change was meant to do are summarised in [`god-bot-record.md`](god-bot-record.md
 | `cGodRetreatEnemyRatioPercent` | Enemy-to-us ratio at the attack that triggers a retreat |
 | `cGodRaidTargetRadius` | How close troops have to be to mark a raid target as defended |
 | `cGodRaidAbortRadius` | How close troops have to be to the raid itself to call it off |
+| `cGodRaidMaxGuard` | Guard above which a drop site is not worth raiding at all |
+| `cGodCavRaidMinCavalry` | Cavalry needed before the gold raid will go |
+| `cGodCavRaidMineRadius` | How close a miner has to be to count as working a mine |
+| `cGodCavRaidRetreatRadius` | How close the enemy has to get to call the cavalry raid home |
 
 ## Caveats
 

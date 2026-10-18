@@ -28,6 +28,17 @@ const int cGodRetreatEnemyRatioPercent = 150;
 // target, and prefer the target the enemy is not sitting on.
 const float cGodRaidTargetRadius = 30.0;
 const float cGodRaidAbortRadius = 25.0;
+// A party of eight cannot fight a garrison, so a site that is still guarded is
+// not worth the walk. The bot counts the guard before it sends anyone.
+const int cGodRaidMaxGuard = 2;
+
+// A cavalry raid goes for the enemy's gold instead: a fast party that hits the
+// mine the enemy is working and rides away. Cavalry outruns the defence, so the
+// raid is judged by how close the enemy is rather than by how many of them there
+// are, and only comes home once they are right on top of it.
+const int cGodCavRaidMinCavalry = 4;
+const float cGodCavRaidMineRadius = 30.0;
+const float cGodCavRaidRetreatRadius = 20.0;
 
 // The enemy's Titan: anything we send at a base while it is out feeds it, so call
 // off an attack when it is this close, and only commit again with an army that
@@ -57,6 +68,7 @@ int[] gGodRetreatSamplePops = default;
 int[] gGodRetreatSampleTimes = default;
 bool gGodHeldTitanGate = false;
 int gGodRaidPlanID = -1;
+int gGodCavRaidPlanID = -1;
 
 //==============================================================================
 // Helpers
@@ -170,7 +182,8 @@ int godEnemyMilitaryNear(vector location = cInvalidVector, float radius = 60.0)
 }
 
 // Prefer the enemy drop site the enemy can least defend; fall back to any
-// villager. The bot counts the troops at each one without scouting them.
+// villager. The bot counts the troops at each one without scouting them, and
+// refuses a site a party of eight would have to walk into a garrison to reach.
 int godFindRaidTarget(int target = -1)
 {
 	int[] dropSites = new int(4, -1);
@@ -194,11 +207,55 @@ int godFindRaidTarget(int target = -1)
 			bestGuard = guard;
 		}
 	}
-	if (bestUnit != -1)
+	if (bestUnit == -1)
 	{
-		return bestUnit;
+		bestUnit = getUnit(cUnitTypeAbstractVillager, target, cUnitStateAlive);
+		if (bestUnit == -1)
+		{
+			return -1;
+		}
+		bestGuard = godEnemyMilitaryNear(kbUnitGetPosition(bestUnit), cGodRaidTargetRadius);
 	}
-	return getUnit(cUnitTypeAbstractVillager, target, cUnitStateAlive);
+	if (bestGuard > cGodRaidMaxGuard)
+	{
+		return -1;
+	}
+	return bestUnit;
+}
+
+// Enemy villagers working a point. The bot sees the whole map, so it never has to
+// scout to know where the enemy's gold is.
+int godEnemyVillagersNear(vector location = cInvalidVector, float radius = 60.0)
+{
+	return getUnitCountByLocation(cUnitTypeAbstractVillager, cPlayerRelationEnemyNotGaia,
+		cUnitStateAlive, location, radius);
+}
+
+// The enemy gold mine with the most miners on it, or -1. Mines belong to Gaia, not
+// to the enemy, so player 0 is the right owner to ask for.
+int godFindGoldMineTarget()
+{
+	int[] mineTypes = new int(3, -1);
+	mineTypes[0] = cUnitTypeMineGoldSmall;
+	mineTypes[1] = cUnitTypeMineGoldMedium;
+	mineTypes[2] = cUnitTypeMineGoldLarge;
+	int bestUnit = -1;
+	int bestMiners = 0;
+	for (int i = 0; i < mineTypes.size(); i++)
+	{
+		int unitID = getUnit(mineTypes[i], 0, cUnitStateAlive);
+		if (unitID == -1)
+		{
+			continue;
+		}
+		int miners = godEnemyVillagersNear(kbUnitGetPosition(unitID), cGodCavRaidMineRadius);
+		if (miners > bestMiners)
+		{
+			bestUnit = unitID;
+			bestMiners = miners;
+		}
+	}
+	return bestUnit;
 }
 
 // The enemy's Titan, if one is alive.
@@ -243,6 +300,19 @@ bool godAttackIsLosing(int planID = -1, int ourCount = 0, int ourPop = 0, int sa
 			return true;
 		}
 	}
+	// A cavalry raid is fast enough to leave, so it is not called off by an enemy
+	// count at all: it keeps going while the enemy is still this far off, and comes
+	// home once they close in.
+	if (planID == gGodCavRaidPlanID)
+	{
+		int closingIn = godEnemyMilitaryNear(planLoc, cGodCavRaidRetreatRadius);
+		if (closingIn > 0)
+		{
+			aiEcho("[GodBot] Retreating " + aiPlanGetName(planID) + ": " + closingIn + " enemies closed in.");
+			return true;
+		}
+		return false;
+	}
 	// Judge a raid on the troops on its target, not on the base's whole garrison.
 	float checkRadius = 60.0;
 	if (planID == gGodRaidPlanID)
@@ -263,8 +333,8 @@ void godRetreatPlan(int planID = -1)
 {
 	aiPlanSetState(planID, cPlanStateDone);
 	// Don't immediately walk the main army back out; regroup first. A failed raid
-	// shouldn't hold up the main attack.
-	if (planID != gGodRaidPlanID)
+	// shouldn't hold up the main attack, and a cavalry raid runs on its own clock.
+	if (planID != gGodRaidPlanID && planID != gGodCavRaidPlanID)
 	{
 		gAttackManager.mLastAttackTime = xsGetTime();
 	}
@@ -854,7 +924,7 @@ minInterval 90
 	{
 		return; // Don't split the army while committing.
 	}
-	if (aiPlanGetIsIDValid(gGodRaidPlanID) == true)
+	if (aiPlanGetIsIDValid(gGodRaidPlanID) == true || aiPlanGetIsIDValid(gGodCavRaidPlanID) == true)
 	{
 		return; // One raid at a time.
 	}
@@ -893,6 +963,53 @@ minInterval 90
 	aiPlanSetFlag(planID, cPlanFlagCantBeStolenFrom, true);
 	gGodRaidPlanID = planID;
 	aiEcho("[GodBot] Raiding enemy economy at " + raidPoint + ".");
+}
+
+// A fast raid on the enemy's gold. Cavalry rides in, kills the miners, and leaves
+// before the army can answer, so this one is allowed while the main army is pushing
+// — that is exactly when the enemy's army is away from its mines.
+rule godCavRaidMonitor
+inactive
+minInterval 60
+{
+	if (checkStrategyFlag(cStrategyFlagCanAttack) == false)
+	{
+		return;
+	}
+	if (godUnderAttack() == true)
+	{
+		return;
+	}
+	if (aiPlanGetIsIDValid(gGodRaidPlanID) == true || aiPlanGetIsIDValid(gGodCavRaidPlanID) == true)
+	{
+		return; // One raid at a time.
+	}
+	if (kbUnitCount(cUnitTypeAbstractCavalry, cMyID, cUnitStateAlive) < cGodCavRaidMinCavalry)
+	{
+		return; // No cavalry in this army; the foot raid is all we have.
+	}
+	int raidTargetID = godFindGoldMineTarget();
+	if (raidTargetID == -1)
+	{
+		return; // Nobody is mining, nothing to hit.
+	}
+	vector raidPoint = kbUnitGetPosition(raidTargetID);
+	vector gatherPoint = aiPlanGetVariableVector(gPrimaryLandDefendPlan, cDefendPlanGatherPoint, 0);
+	int planID = aiPlanCreate("GodBot Cavalry Raid", cPlanAttack, -1, gMilitaryAttackingCategoryID);
+	aiPlanSetVariableInt(planID, cAttackPlanTargetMode, 0, cAttackPlanTargetModePoint);
+	aiPlanSetVariableVector(planID, cAttackPlanTargetPoint, 0, raidPoint);
+	aiPlanSetVariableVector(planID, cAttackPlanGatherPoint, 0, gatherPoint);
+	aiPlanSetVariableFloat(planID, cAttackPlanGatherDistance, 0, 15.0);
+	aiPlanSetVariableInt(planID, cAttackPlanGatherWaitTime, 0, 15 * 1000);
+	aiPlanSetVariableInt(planID, cAttackPlanDoneMode, 0, cAttackPlanDoneModeNoTarget | cAttackPlanDoneModeNoUnits);
+	aiPlanAddUnitType(planID, cUnitTypeAbstractCavalry, 2, 3, 6);
+	preventSomeBuildersFromJoiningAttack(planID);
+	setDefaultAttackPlanTargetUnitTypes(planID);
+	addPlanToAllSuitableGodpowerPlans(planID);
+	aiPlanSetPriority(planID, 70);
+	aiPlanSetFlag(planID, cPlanFlagCantBeStolenFrom, true);
+	gGodCavRaidPlanID = planID;
+	aiEcho("[GodBot] Cavalry raiding the enemy gold at " + raidPoint + ".");
 }
 
 // One structured line every 30s for offline analysis. Read it back from
@@ -964,5 +1081,6 @@ void postInit()
 	xsEnableRule("godTowerUpgradeMonitor");
 	xsEnableRule("godRetreatMonitor");
 	xsEnableRule("godRaidMonitor");
+	xsEnableRule("godCavRaidMonitor");
 	xsEnableRule("godTelemetryMonitor");
 }
