@@ -27,13 +27,24 @@ startup flow and exposes two override hooks:
 
 ## Installing
 
-Copy `game/` into the game's local mod folder, keeping the mod name `CustomBot`:
+The repository is the source of truth; the game's local mod folder just holds symlinks
+back into it. Point them at your checkout with:
 
+```sh
+./install.sh
 ```
-…/Games/Age of Mythology Retold/<steam-id>/mods/local/CustomBot/game/…
-```
+
+This finds your Steam account directory under the Proton prefix and creates the mod
+folder plus the Scenario Editor symlink. It is idempotent — re-run it after cloning or
+moving the checkout, since the symlinks are absolute.
 
 Then pick **CustomBot** as an AI opponent in the skirmish lobby.
+
+## Current limitations
+
+- The personality reuses stock string IDs (`STR_AI_PERS_ATTACKER`) and the aggressive
+  portrait, so it appears as **"Attacker"** in the lobby. A custom stringtable + icon mod
+  would be needed for a distinct name.
 
 ## Development notes
 
@@ -43,6 +54,10 @@ Then pick **CustomBot** as an AI opponent in the skirmish lobby.
 
 ## Legal
 
+Released under the [MIT License](LICENSE).
+
 Age of Mythology: Retold and all associated game assets, documentation and scripting
-APIs are the property of their respective owners. This repository contains only
-original mod code; proprietary game material is excluded via `.gitignore`.
+APIs are the property of their respective owners. This project is unofficial and not
+affiliated with or endorsed by the game's developer or publisher. It requires a
+legitimate copy of the game to run and ships no game material — proprietary assets
+(extracted API documentation, `.mythscn` maps) are excluded via `.gitignore`.
