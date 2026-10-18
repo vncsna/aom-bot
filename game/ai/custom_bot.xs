@@ -38,6 +38,9 @@ const int cCustomTitanHuntArmyPop = 60;
 // Decisive push: once we are clearly ahead, attack on a fast cadence instead.
 const int cCustomPushArmyPop = 40;   // military pop required before we commit
 const int cCustomPushInterval = 90;  // seconds between attacks while pushing
+// The bot reads the enemy's army without scouting, so "clearly ahead" can mean
+// this much more army than theirs rather than a guess.
+const int cCustomPushAdvantagePercent = 150;
 
 // Economy: Conqueror-style boom target for the villager count.
 const int cCustomMaxVillagerPop = 90;
@@ -461,7 +464,9 @@ void customApplyAttackCadence()
 // purpose: we only stop being patient once the game is effectively won.
 bool customShouldPush()
 {
-	if (customUnderAttack() == true)
+	// A brief poke at the base must not call off a push we already committed to;
+	// a real collapse shows up as the army falling below the bar, further down.
+	if (customUnderAttack() == true && gCustomPushing == false)
 	{
 		return false;
 	}
@@ -479,13 +484,22 @@ bool customShouldPush()
 	{
 		return false;
 	}
-	// The enemy is crumbling: one base left.
-	if (kbUnitCount(cUnitTypeAbstractTownCenter, target, cUnitStateAlive) <= 1)
+	// We are an age ahead and have a real army.
+	if (age > kbPlayerGetAge(target))
 	{
 		return true;
 	}
-	// We are an age ahead and have a real army.
-	if (age > kbPlayerGetAge(target))
+	// The bot reads the enemy army directly, so it can tell when it outguns it
+	// rather than waiting for a base count to prove it.
+	int ourArmy = kbUnitCount(cUnitTypeLogicalTypeLandMilitary, cMyID, cUnitStateAlive);
+	int enemyArmy = kbUnitCount(cUnitTypeLogicalTypeLandMilitary, target, cUnitStateAlive);
+	// No enemy army left to stop us.
+	if (enemyArmy == 0)
+	{
+		return true;
+	}
+	int required = (enemyArmy * cCustomPushAdvantagePercent) / 100;
+	if (ourArmy >= required)
 	{
 		return true;
 	}
