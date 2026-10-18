@@ -1,6 +1,6 @@
 # XS Syntax Notes
 
-XS is the BANG engine's scripting language; `custom_bot.xs` and the base game's AI
+XS is the BANG engine's scripting language; `god_bot.xs` and the base game's AI
 scripts are written in it. The authoritative grammar is the game's own
 `BANG_Documentation/XS documentation/XS language syntax.pdf` (proprietary, not tracked
 here). This file is the working subset the bot relies on, plus the parser traps that have
@@ -22,7 +22,7 @@ parse:
 // Wrong. XS: Error 0230: expected 'case' or 'default' and found 'break'.
 switch (cMyCiv)
 {
-	case cCivZeus: customSetMinorGods(a, b, c); break;
+	case cCivZeus: godSetMinorGods(a, b, c); break;
 }
 
 // Right.
@@ -30,7 +30,7 @@ switch (cMyCiv)
 {
 	case cCivZeus:
 	{
-		customSetMinorGods(a, b, c);
+		godSetMinorGods(a, b, c);
 		break;
 	}
 }
@@ -67,7 +67,7 @@ extern int gHouseUnit = -1;
 
 A plain `int gFoo = -1;` in another file — for example `gTitanGateCurrentState` in
 `core/godpowers/godpowers.xs` — is private to that file. Referencing it from
-`custom_bot.xs` fails with `Error 0172: '<name>' is not a valid operator`. There is no way
+`god_bot.xs` fails with `Error 0172: '<name>' is not a valid operator`. There is no way
 to reach it from here: use an `extern`-declared equivalent, a strategy flag, or a rule
 instead.
 
@@ -101,7 +101,7 @@ values.
 
 ```c
 int lostPercent = (lostPop * 100) / sample;
-if (lostPercent >= cCustomRetreatLossPercent)
+if (lostPercent >= cGodRetreatLossPercent)
 ```
 
 ## Types
@@ -143,7 +143,7 @@ seconds.
 ## Engine hooks the bot uses
 
 - `preInit()` runs before engine setup and `postInit()` after. Both are plain functions in
-  `custom_bot.xs`, called by `core/main.xs`.
+  `god_bot.xs`, called by `core/main.xs`.
 - `setOverrideStrategy(setupFunc)` in `preInit()` replaces the stock strategy; the setup
   function adds a `Strategy` to `gStrategyManager`.
 - A `Strategy` carries `mInitFunc` and `mUpdateFunc` lambdas. `mUpdateFunc` runs about once
@@ -163,7 +163,7 @@ seconds.
 | `0165` | `high level parseExpr2 failed` | Follows `0172` or `0308`. |
 | `0308` | `illogical or invalid expression` | A comparison's left operand is an unparenthesised `*` or `/` inside a compound condition. |
 | `0047` | `could not parse the code for '<function>'` | Follows a syntax error inside that function. |
-| — | `could not compile file 'custom_bot.xs'` | Follows any of the above; the bot does not load. |
+| — | `could not compile file 'god_bot.xs'` | Follows any of the above; the bot does not load. |
 
 ## Checking a change
 

@@ -1,7 +1,7 @@
 # AI Architecture — Authoring Bot Behavior
 
 This document explains *how a bot is described* in the base game AI and how to reuse
-that model in `custom_bot.xs`. It is the companion to [`AGENTS.md`](../AGENTS.md): that
+that model in `god_bot.xs`. It is the companion to [`AGENTS.md`](../AGENTS.md): that
 file tells you **where** things live, this one tells you **how behavior is expressed**.
 
 The goal is to let you describe a bot in plain language and translate it to XS without
@@ -26,7 +26,7 @@ combat micro.
 
 ## Startup flow
 
-`custom_bot.xs` includes the base game's `core/main.xs`, which drives everything and
+`god_bot.xs` includes the base game's `core/main.xs`, which drives everything and
 calls two hooks you own:
 
 ```c

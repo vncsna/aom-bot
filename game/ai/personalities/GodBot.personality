@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <AI>
-    <script>custom_bot</script>
+    <script>god_bot</script>
     <imagePath>shared/static_color/personalities/personality_conqueror.png</imagePath>
     <nameID>STR_AI_PERS_CONQUEROR</nameID>
     <descriptionID>STR_AI_PERS_CONQUEROR_DESC</descriptionID>

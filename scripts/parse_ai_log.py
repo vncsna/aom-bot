@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Summarise the bot's `[CBOT]` telemetry from an AI output log.
+"""Summarise the bot's `[GBOT]` telemetry from an AI output log.
 
-The bot writes one `[CBOT] ...` line every 30 seconds (see
-`customTelemetryMonitor` in `game/ai/custom_bot.xs`). The game puts those in a
+The bot writes one `[GBOT] ...` line every 30 seconds (see
+`godTelemetryMonitor` in `game/ai/god_bot.xs`). The game puts those in a
 per-player log:
 
   …/Games/Age of Mythology Retold/temp/Logs/MythRetoldAIOutputPlayer<N>.txt
@@ -17,7 +17,7 @@ Usage:
 import sys
 from pathlib import Path
 
-MARKER = "[CBOT]"
+MARKER = "[GBOT]"
 COLUMNS = ["t", "age", "vills", "pop", "army", "food", "wood", "gold", "enemyAge", "enemyTitan", "state"]
 
 
@@ -51,7 +51,7 @@ def main():
 
     rows = [parse_fields(line) for line in read_lines(path) if MARKER in line]
     if not rows:
-        print("no [CBOT] telemetry found in this log")
+        print("no [GBOT] telemetry found in this log")
         return 1
 
     print(" ".join(f"{c:>8}" for c in COLUMNS))

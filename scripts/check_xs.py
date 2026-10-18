@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Static checks for custom_bot.xs.
+"""Static checks for god_bot.xs.
 
 The engine compiles XS only at match start and reports one error at a time, so every
 mistake costs a full game load to find. These checks encode the rules we have verified
@@ -18,7 +18,7 @@ import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-DEFAULT_TARGETS = [REPO / "game/ai/custom_bot.xs"]
+DEFAULT_TARGETS = [REPO / "game/ai/god_bot.xs"]
 
 GAME_AI = Path(os.environ.get(
     "AOM_GAME_AI",

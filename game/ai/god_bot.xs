@@ -1,10 +1,10 @@
 //==============================================================================
-// custom_bot.xs - Age of Mythology: Retold Custom AI Bot
+// god_bot.xs - Age of Mythology: Retold God Bot
 //
-// A Conqueror-flavoured bot: slow, territorial, economy-heavy. Behaviour is
-// declared here and the engine's plan system executes it. See
-// docs/custom-bot-design.md for the requirements this implements and how each
-// one is translated into engine behaviour.
+// A win-at-all-costs bot: it plays the Conqueror's slow, economy-heavy game but
+// decides with information a human player cannot have. See docs/god-bot-design.md
+// for the goal, the powers it exploits, and how each is translated into engine
+// behaviour.
 //==============================================================================
 include "core/main.xs";
 
@@ -12,58 +12,58 @@ include "core/main.xs";
 // Tunables
 //==============================================================================
 // Conqueror already attacks on a slow rhythm; we slow it down further.
-const float cCustomCadenceMultiplier = 1.5;
+const float cGodCadenceMultiplier = 1.5;
 
 // Tiny maps: how much free pop we want before the Armory is allowed.
-const int cCustomHousePopHeadroomBase = 15;
+const int cGodHousePopHeadroomBase = 15;
 
 // Retreat: abandon an attack after losing this share of the army ...
-const int cCustomRetreatLossPercent = 50;
+const int cGodRetreatLossPercent = 50;
 // ... within this many seconds, or when the enemy outnumbers us by this ratio.
-const int cCustomRetreatLossWindow = 45;
-const int cCustomRetreatEnemyRatioPercent = 150;
+const int cGodRetreatLossWindow = 45;
+const int cGodRetreatEnemyRatioPercent = 150;
 
 // A raid is a small group, so a whole base garrison counts as "outnumbered" and
 // calls it off before it lands. Judge a raid only on the troops sitting on its
 // target, and prefer the target the enemy is not sitting on.
-const float cCustomRaidTargetRadius = 30.0;
-const float cCustomRaidAbortRadius = 25.0;
+const float cGodRaidTargetRadius = 30.0;
+const float cGodRaidAbortRadius = 25.0;
 
 // The enemy's Titan: anything we send at a base while it is out feeds it, so call
 // off an attack when it is this close, and only commit again with an army that
 // can actually take one on.
-const float cCustomTitanFleeRadius = 45.0;
-const int cCustomTitanHuntArmyPop = 60;
+const float cGodTitanFleeRadius = 45.0;
+const int cGodTitanHuntArmyPop = 60;
 
 // Decisive push: once we are clearly ahead, attack on a fast cadence instead.
-const int cCustomPushArmyPop = 40;   // military pop required before we commit
-const int cCustomPushInterval = 90;  // seconds between attacks while pushing
+const int cGodPushArmyPop = 40;   // military pop required before we commit
+const int cGodPushInterval = 90;  // seconds between attacks while pushing
 // The bot reads the enemy's army without scouting, so "clearly ahead" can mean
 // this much more army than theirs rather than a guess.
-const int cCustomPushAdvantagePercent = 150;
+const int cGodPushAdvantagePercent = 150;
 
 // Economy: Conqueror-style boom target for the villager count.
-const int cCustomMaxVillagerPop = 90;
+const int cGodMaxVillagerPop = 90;
 
 //==============================================================================
 // State
 //==============================================================================
-bool gCustomNavalMap = false;
-bool gCustomPushing = false;
-int gCustomLastAge = -1;
+bool gGodNavalMap = false;
+bool gGodPushing = false;
+int gGodLastAge = -1;
 // Per attack plan in the field: its army power at the start of the loss window, and when.
-int[] gCustomRetreatPlanIDs = default;
-int[] gCustomRetreatSamplePops = default;
-int[] gCustomRetreatSampleTimes = default;
-bool gCustomHeldTitanGate = false;
-int gCustomRaidPlanID = -1;
+int[] gGodRetreatPlanIDs = default;
+int[] gGodRetreatSamplePops = default;
+int[] gGodRetreatSampleTimes = default;
+bool gGodHeldTitanGate = false;
+int gGodRaidPlanID = -1;
 
 //==============================================================================
 // Helpers
 //==============================================================================
 
 // A map only counts as naval if it is an island map or we start on a transport.
-bool customIsNavalMap()
+bool godIsNavalMap()
 {
 	if (gMapInfo.mIsIslandMap == true)
 	{
@@ -76,13 +76,13 @@ bool customIsNavalMap()
 	return false;
 }
 
-bool customUnderAttack()
+bool godUnderAttack()
 {
 	return gDefensivelyOverrun;
 }
 
 // Destroy every build plan for a given building type.
-void customCancelBuildPlans(int puid = -1)
+void godCancelBuildPlans(int puid = -1)
 {
 	int[] plans = aiPlanGetIDsByTypeAndVariableIntValue(cPlanBuild, cBuildPlanBuildingTypeID, puid);
 	for (int i = 0; i < plans.size(); i++)
@@ -94,7 +94,7 @@ void customCancelBuildPlans(int puid = -1)
 	}
 }
 
-bool customBaseHasMilitaryBuilding(int baseID = -1)
+bool godBaseHasMilitaryBuilding(int baseID = -1)
 {
 	for (int i = 0; i < gMilitaryBuildings.size(); i++)
 	{
@@ -115,7 +115,7 @@ bool customBaseHasMilitaryBuilding(int baseID = -1)
 	return false;
 }
 
-int customPickMilitaryBuilding()
+int godPickMilitaryBuilding()
 {
 	for (int i = 0; i < gMilitaryBuildings.size(); i++)
 	{
@@ -129,7 +129,7 @@ int customPickMilitaryBuilding()
 }
 
 // The next tower upgrade we can research right now, in the engine's own order.
-int customNextTowerUpgrade()
+int godNextTowerUpgrade()
 {
 	int watchTower = cTechWatchTower;
 	int guardTower = cTechGuardTower;
@@ -163,7 +163,7 @@ int customNextTowerUpgrade()
 
 // How much enemy military is sitting on a point. The bot sees the whole map, so
 // it never has to scout to know this.
-int customEnemyMilitaryNear(vector location, float radius = 60.0)
+int godEnemyMilitaryNear(vector location, float radius = 60.0)
 {
 	return getUnitCountByLocation(cUnitTypeLogicalTypeLandMilitary, cPlayerRelationEnemyNotGaia,
 		cUnitStateAlive, location, radius);
@@ -171,7 +171,7 @@ int customEnemyMilitaryNear(vector location, float radius = 60.0)
 
 // Prefer the enemy drop site the enemy can least defend; fall back to any
 // villager. The bot counts the troops at each one without scouting them.
-int customFindRaidTarget(int target = -1)
+int godFindRaidTarget(int target = -1)
 {
 	int[] dropSites = new int(4, -1);
 	dropSites[0] = cUnitTypeStorehouse;
@@ -187,7 +187,7 @@ int customFindRaidTarget(int target = -1)
 		{
 			continue;
 		}
-		int guard = customEnemyMilitaryNear(kbUnitGetPosition(unitID), cCustomRaidTargetRadius);
+		int guard = godEnemyMilitaryNear(kbUnitGetPosition(unitID), cGodRaidTargetRadius);
 		if (bestUnit == -1 || guard < bestGuard)
 		{
 			bestUnit = unitID;
@@ -202,7 +202,7 @@ int customFindRaidTarget(int target = -1)
 }
 
 // The enemy's Titan, if one is alive.
-int customEnemyTitanID()
+int godEnemyTitanID()
 {
 	int target = aiGetMostHatedPlayerID();
 	if (target == -1)
@@ -213,14 +213,14 @@ int customEnemyTitanID()
 }
 
 // A Titan counts as one enemy unit, so the outnumbered check never sees it coming.
-bool customTitanNear(vector location)
+bool godTitanNear(vector location)
 {
 	return getUnitCountByLocation(cUnitTypeAbstractTitan, cPlayerRelationEnemyNotGaia,
-		cUnitStateAlive, location, cCustomTitanFleeRadius) > 0;
+		cUnitStateAlive, location, cGodTitanFleeRadius) > 0;
 }
 
 // Is this attack bleeding out, outnumbered, or standing in front of a Titan?
-bool customAttackIsLosing(int planID = -1, int ourCount = 0, int ourPop = 0, int samplePop = 0)
+bool godAttackIsLosing(int planID = -1, int ourCount = 0, int ourPop = 0, int samplePop = 0)
 {
 	vector planLoc = aiPlanGetLocation(planID);
 	if (planLoc == cInvalidVector)
@@ -228,43 +228,43 @@ bool customAttackIsLosing(int planID = -1, int ourCount = 0, int ourPop = 0, int
 		return false;
 	}
 	// A Titan kills an army faster than the loss window can notice it.
-	if (customTitanNear(planLoc) == true)
+	if (godTitanNear(planLoc) == true)
 	{
-		aiEcho("[CustomBot] Retreating " + aiPlanGetName(planID) + ": enemy Titan in the field.");
+		aiEcho("[GodBot] Retreating " + aiPlanGetName(planID) + ": enemy Titan in the field.");
 		return true;
 	}
 	if (samplePop > 0)
 	{
 		int lostPop = samplePop - ourPop;
 		int lostPercent = (lostPop * 100) / samplePop;
-		if (lostPercent >= cCustomRetreatLossPercent)
+		if (lostPercent >= cGodRetreatLossPercent)
 		{
-			aiEcho("[CustomBot] Retreating " + aiPlanGetName(planID) + ": lost " + lostPop + " of " + samplePop + " pop.");
+			aiEcho("[GodBot] Retreating " + aiPlanGetName(planID) + ": lost " + lostPop + " of " + samplePop + " pop.");
 			return true;
 		}
 	}
 	// Judge a raid on the troops on its target, not on the base's whole garrison.
 	float checkRadius = 60.0;
-	if (planID == gCustomRaidPlanID)
+	if (planID == gGodRaidPlanID)
 	{
-		checkRadius = cCustomRaidAbortRadius;
+		checkRadius = cGodRaidAbortRadius;
 	}
-	int enemyCount = customEnemyMilitaryNear(planLoc, checkRadius);
+	int enemyCount = godEnemyMilitaryNear(planLoc, checkRadius);
 	int enemyRatio = (enemyCount * 100) / ourCount;
-	if (enemyCount >= 3 && enemyRatio > cCustomRetreatEnemyRatioPercent)
+	if (enemyCount >= 3 && enemyRatio > cGodRetreatEnemyRatioPercent)
 	{
-		aiEcho("[CustomBot] Retreating " + aiPlanGetName(planID) + ": " + enemyCount + " enemies vs our " + ourCount + ".");
+		aiEcho("[GodBot] Retreating " + aiPlanGetName(planID) + ": " + enemyCount + " enemies vs our " + ourCount + ".");
 		return true;
 	}
 	return false;
 }
 
-void customRetreatPlan(int planID = -1)
+void godRetreatPlan(int planID = -1)
 {
 	aiPlanSetState(planID, cPlanStateDone);
 	// Don't immediately walk the main army back out; regroup first. A failed raid
 	// shouldn't hold up the main attack.
-	if (planID != gCustomRaidPlanID)
+	if (planID != gGodRaidPlanID)
 	{
 		gAttackManager.mLastAttackTime = xsGetTime();
 	}
@@ -275,12 +275,12 @@ void customRetreatPlan(int planID = -1)
 //==============================================================================
 
 // A Conqueror booms: ask for a large villager count to fund a slow push.
-void customApplyEconomy()
+void godApplyEconomy()
 {
-	gOverrideMaxVillagerPop = cCustomMaxVillagerPop;
+	gOverrideMaxVillagerPop = cGodMaxVillagerPop;
 }
 
-void customSetMinorGods(int classical = -1, int heroic = -1, int mythic = -1)
+void godSetMinorGods(int classical = -1, int heroic = -1, int mythic = -1)
 {
 	gOverrideClassicalMinorGod = classical;
 	gOverrideHeroicMinorGod = heroic;
@@ -291,148 +291,148 @@ void customSetMinorGods(int classical = -1, int heroic = -1, int mythic = -1)
 // defence-minded, slow-push style. The engine ignores an override it cannot
 // obtain, so keying on the major god guarantees the pick is valid. The
 // reasoning behind each pick (and the god matchups) is in
-// docs/custom-bot-minor-gods.md.
-void customApplyMinorGods()
+// docs/god-bot-minor-gods.md.
+void godApplyMinorGods()
 {
 	switch (cMyCiv)
 	{
 		// Greeks.
 		case cCivZeus:
 		{
-			customSetMinorGods(cTechClassicalAgeAthena, cTechHeroicAgeApollo, cTechMythicAgeHephaestus);
+			godSetMinorGods(cTechClassicalAgeAthena, cTechHeroicAgeApollo, cTechMythicAgeHephaestus);
 			break;
 		}
 		case cCivPoseidon:
 		{
-			customSetMinorGods(cTechClassicalAgeAres, cTechHeroicAgeAphrodite, cTechMythicAgeHephaestus);
+			godSetMinorGods(cTechClassicalAgeAres, cTechHeroicAgeAphrodite, cTechMythicAgeHephaestus);
 			break;
 		}
 		case cCivHades:
 		{
-			customSetMinorGods(cTechClassicalAgeAthena, cTechHeroicAgeAphrodite, cTechMythicAgeHephaestus);
+			godSetMinorGods(cTechClassicalAgeAthena, cTechHeroicAgeAphrodite, cTechMythicAgeHephaestus);
 			break;
 		}
 		case cCivDemeter:
 		{
-			customSetMinorGods(cTechClassicalAgePan, cTechHeroicAgeHestia, cTechMythicAgeHera);
+			godSetMinorGods(cTechClassicalAgePan, cTechHeroicAgeHestia, cTechMythicAgeHera);
 			break;
 		}
 		// Egyptians.
 		case cCivRa:
 		{
-			customSetMinorGods(cTechClassicalAgeBast, cTechHeroicAgeSekhmet, cTechMythicAgeHorus);
+			godSetMinorGods(cTechClassicalAgeBast, cTechHeroicAgeSekhmet, cTechMythicAgeHorus);
 			break;
 		}
 		case cCivIsis:
 		{
-			customSetMinorGods(cTechClassicalAgeBast, cTechHeroicAgeNephthys, cTechMythicAgeThoth);
+			godSetMinorGods(cTechClassicalAgeBast, cTechHeroicAgeNephthys, cTechMythicAgeThoth);
 			break;
 		}
 		case cCivSet:
 		{
-			customSetMinorGods(cTechClassicalAgePtah, cTechHeroicAgeSekhmet, cTechMythicAgeHorus);
+			godSetMinorGods(cTechClassicalAgePtah, cTechHeroicAgeSekhmet, cTechMythicAgeHorus);
 			break;
 		}
 		// Norse.
 		case cCivThor:
 		{
-			customSetMinorGods(cTechClassicalAgeForseti, cTechHeroicAgeSkadi, cTechMythicAgeTyr);
+			godSetMinorGods(cTechClassicalAgeForseti, cTechHeroicAgeSkadi, cTechMythicAgeTyr);
 			break;
 		}
 		case cCivOdin:
 		{
-			customSetMinorGods(cTechClassicalAgeHeimdall, cTechHeroicAgeSkadi, cTechMythicAgeTyr);
+			godSetMinorGods(cTechClassicalAgeHeimdall, cTechHeroicAgeSkadi, cTechMythicAgeTyr);
 			break;
 		}
 		case cCivLoki:
 		{
-			customSetMinorGods(cTechClassicalAgeHeimdall, cTechHeroicAgeBragi, cTechMythicAgeTyr);
+			godSetMinorGods(cTechClassicalAgeHeimdall, cTechHeroicAgeBragi, cTechMythicAgeTyr);
 			break;
 		}
 		case cCivFreyr:
 		{
-			customSetMinorGods(cTechClassicalAgeUllr, cTechHeroicAgeAegir, cTechMythicAgeVidar);
+			godSetMinorGods(cTechClassicalAgeUllr, cTechHeroicAgeAegir, cTechMythicAgeVidar);
 			break;
 		}
 		// Atlanteans.
 		case cCivKronos:
 		{
-			customSetMinorGods(cTechClassicalAgePrometheus, cTechHeroicAgeRheia, cTechMythicAgeAtlas);
+			godSetMinorGods(cTechClassicalAgePrometheus, cTechHeroicAgeRheia, cTechMythicAgeAtlas);
 			break;
 		}
 		case cCivOranos:
 		{
-			customSetMinorGods(cTechClassicalAgeOceanus, cTechHeroicAgeHyperion, cTechMythicAgeHekate);
+			godSetMinorGods(cTechClassicalAgeOceanus, cTechHeroicAgeHyperion, cTechMythicAgeHekate);
 			break;
 		}
 		case cCivGaia:
 		{
-			customSetMinorGods(cTechClassicalAgeOceanus, cTechHeroicAgeRheia, cTechMythicAgeAtlas);
+			godSetMinorGods(cTechClassicalAgeOceanus, cTechHeroicAgeRheia, cTechMythicAgeAtlas);
 			break;
 		}
 		// Chinese.
 		case cCivFuxi:
 		{
-			customSetMinorGods(cTechClassicalAgeXuannu, cTechHeroicAgeNuba, cTechMythicAgeHuangdi);
+			godSetMinorGods(cTechClassicalAgeXuannu, cTechHeroicAgeNuba, cTechMythicAgeHuangdi);
 			break;
 		}
 		case cCivNuwa:
 		{
-			customSetMinorGods(cTechClassicalAgeHoutu, cTechHeroicAgeRushou, cTechMythicAgeZhurong);
+			godSetMinorGods(cTechClassicalAgeHoutu, cTechHeroicAgeRushou, cTechMythicAgeZhurong);
 			break;
 		}
 		case cCivShennong:
 		{
-			customSetMinorGods(cTechClassicalAgeHoutu, cTechHeroicAgeRushou, cTechMythicAgeHuangdi);
+			godSetMinorGods(cTechClassicalAgeHoutu, cTechHeroicAgeRushou, cTechMythicAgeHuangdi);
 			break;
 		}
 		// Japanese.
 		case cCivAmaterasu:
 		{
-			customSetMinorGods(cTechClassicalAgeAmeNoUzume, cTechHeroicAgeHachiman, cTechMythicAgeTakemikazuchi);
+			godSetMinorGods(cTechClassicalAgeAmeNoUzume, cTechHeroicAgeHachiman, cTechMythicAgeTakemikazuchi);
 			break;
 		}
 		case cCivTsukuyomi:
 		{
-			customSetMinorGods(cTechClassicalAgeAmeNoUzume, cTechHeroicAgeHachiman, cTechMythicAgeOkuninushi);
+			godSetMinorGods(cTechClassicalAgeAmeNoUzume, cTechHeroicAgeHachiman, cTechMythicAgeOkuninushi);
 			break;
 		}
 		case cCivSusanoo:
 		{
-			customSetMinorGods(cTechClassicalAgeMinakatatomi, cTechHeroicAgeRaijin, cTechMythicAgeTakemikazuchi);
+			godSetMinorGods(cTechClassicalAgeMinakatatomi, cTechHeroicAgeRaijin, cTechMythicAgeTakemikazuchi);
 			break;
 		}
 		// Aztecs.
 		case cCivHuitzilopochtli:
 		{
-			customSetMinorGods(cTechClassicalAgePatecatl, cTechHeroicAgeCoatlicue, cTechMythicAgeTlaloc);
+			godSetMinorGods(cTechClassicalAgePatecatl, cTechHeroicAgeCoatlicue, cTechMythicAgeTlaloc);
 			break;
 		}
 		case cCivTezcatlipoca:
 		{
-			customSetMinorGods(cTechClassicalAgeHuehuecoyotl, cTechHeroicAgeCoyolxauhqui, cTechMythicAgeXolotl);
+			godSetMinorGods(cTechClassicalAgeHuehuecoyotl, cTechHeroicAgeCoyolxauhqui, cTechMythicAgeXolotl);
 			break;
 		}
 		case cCivQuetzalcoatl:
 		{
-			customSetMinorGods(cTechClassicalAgePatecatl, cTechHeroicAgeCoatlicue, cTechMythicAgeTlaloc);
+			godSetMinorGods(cTechClassicalAgePatecatl, cTechHeroicAgeCoatlicue, cTechMythicAgeTlaloc);
 			break;
 		}
 	}
-	aiEcho("[CustomBot] Minor gods: " + kbTechGetName(gOverrideClassicalMinorGod) + " / "
+	aiEcho("[GodBot] Minor gods: " + kbTechGetName(gOverrideClassicalMinorGod) + " / "
 		+ kbTechGetName(gOverrideHeroicMinorGod) + " / " + kbTechGetName(gOverrideMythicMinorGod) + ".");
 }
 
 // No navy unless the map is really naval; otherwise shut naval military down.
-void customApplyNavalPolicy(ref StrategyData data)
+void godApplyNavalPolicy(ref StrategyData data)
 {
-	gCustomNavalMap = customIsNavalMap();
-	if (gCustomNavalMap == true)
+	gGodNavalMap = godIsNavalMap();
+	if (gGodNavalMap == true)
 	{
-		aiEcho("[CustomBot] Naval map detected - keeping a navy.");
+		aiEcho("[GodBot] Naval map detected - keeping a navy.");
 		return;
 	}
-	aiEcho("[CustomBot] Not a naval map - disabling naval military.");
+	aiEcho("[GodBot] Not a naval map - disabling naval military.");
 	data.setFlag(cStrategyFlagAutoTrainNavalMilitaryUnits, false);
 	data.setFlag(cStrategyFlagCanNavalAttack, false);
 	data.setFlag(cStrategyFlagCanNavalDefend, false);
@@ -442,31 +442,31 @@ void customApplyNavalPolicy(ref StrategyData data)
 }
 
 // Conqueror's slow rhythm, slowed down further; faster once we are pushing.
-void customApplyAttackCadence()
+void godApplyAttackCadence()
 {
 	int interval = 0;
-	if (gCustomPushing == true)
+	if (gGodPushing == true)
 	{
-		interval = cCustomPushInterval;
+		interval = cGodPushInterval;
 	}
 	else
 	{
-		interval = xsFloatToInt(selectByDifficultyFloat(20, 15, 9, 7, 5, 5) * 60.0 * cCustomCadenceMultiplier);
+		interval = xsFloatToInt(selectByDifficultyFloat(20, 15, 9, 7, 5, 5) * 60.0 * cGodCadenceMultiplier);
 	}
 	gAttackManager.mBaseAttackInterval = interval;
 	gAttackManager.mAttackInterval = interval;
 	gNavalAttackManager.mBaseAttackInterval = interval;
 	gNavalAttackManager.mAttackInterval = interval;
-	aiEcho("[CustomBot] Attack interval set to " + interval + " seconds.");
+	aiEcho("[GodBot] Attack interval set to " + interval + " seconds.");
 }
 
 // Are we clearly ahead enough to commit to a decisive push? Conservative on
 // purpose: we only stop being patient once the game is effectively won.
-bool customShouldPush()
+bool godShouldPush()
 {
 	// A brief poke at the base must not call off a push we already committed to;
 	// a real collapse shows up as the army falling below the bar, further down.
-	if (customUnderAttack() == true && gCustomPushing == false)
+	if (godUnderAttack() == true && gGodPushing == false)
 	{
 		return false;
 	}
@@ -475,7 +475,7 @@ bool customShouldPush()
 	{
 		return false; // Don't commit before Heroic.
 	}
-	if (aiGetCurrentMilitaryPop() < cCustomPushArmyPop)
+	if (aiGetCurrentMilitaryPop() < cGodPushArmyPop)
 	{
 		return false;
 	}
@@ -498,7 +498,7 @@ bool customShouldPush()
 	{
 		return true;
 	}
-	int required = (enemyArmy * cCustomPushAdvantagePercent) / 100;
+	int required = (enemyArmy * cGodPushAdvantagePercent) / 100;
 	if (ourArmy >= required)
 	{
 		return true;
@@ -506,7 +506,7 @@ bool customShouldPush()
 	return false;
 }
 
-void customPushHouseBuild()
+void godPushHouseBuild()
 {
 	if (aiPlanGetNumberByTypeAndVariableIntValue(cPlanBuild, cBuildPlanBuildingTypeID, gHouseUnit) > 0)
 	{
@@ -518,7 +518,7 @@ void customPushHouseBuild()
 
 // On Tiny maps we want houses before the Armory: hold the Armory until the
 // Temple is up and we have a comfortable pop buffer, pushing houses meanwhile.
-void customManageTinyMapHousing(ref StrategyData data)
+void godManageTinyMapHousing(ref StrategyData data)
 {
 	if (cRandomMapName != "tiny")
 	{
@@ -533,13 +533,13 @@ void customManageTinyMapHousing(ref StrategyData data)
 	{
 		housesMaxed = true;
 	}
-	bool enoughHouses = housesMaxed || popHeadroom >= cCustomHousePopHeadroomBase + 5 * age;
+	bool enoughHouses = housesMaxed || popHeadroom >= cGodHousePopHeadroomBase + 5 * age;
 
 	if (templeBuilt == true && enoughHouses == false)
 	{
 		data.setFlag(cStrategyFlagBuildArmory, false);
-		customCancelBuildPlans(gArmoryUnit);
-		customPushHouseBuild();
+		godCancelBuildPlans(gArmoryUnit);
+		godPushHouseBuild();
 		return;
 	}
 	data.setFlag(cStrategyFlagBuildArmory, true);
@@ -549,24 +549,24 @@ void customManageTinyMapHousing(ref StrategyData data)
 // machine lives in file-scoped globals inside godpowers.xs, so the rule itself is
 // the only handle we have: disabling it suspends placement, and re-enabling
 // resumes it from wherever it stopped.
-void customHoldTitanGate()
+void godHoldTitanGate()
 {
 	if (xsIsRuleEnabled("titanGateConstructionMonitor") == false)
 	{
 		return;
 	}
-	aiEcho("[CustomBot] Under attack - postponing the Titan Gate.");
+	aiEcho("[GodBot] Under attack - postponing the Titan Gate.");
 	xsDisableRule("titanGateConstructionMonitor");
-	gCustomHeldTitanGate = true;
+	gGodHeldTitanGate = true;
 }
 
-void customReleaseTitanGate()
+void godReleaseTitanGate()
 {
-	if (gCustomHeldTitanGate == false)
+	if (gGodHeldTitanGate == false)
 	{
 		return;
 	}
-	gCustomHeldTitanGate = false;
+	gGodHeldTitanGate = false;
 	if (kbGodPowerGetCost(cProtoPowerTitanGate, cMyID) != 0.0)
 	{
 		return;
@@ -577,52 +577,52 @@ void customReleaseTitanGate()
 
 // While we're being pushed, don't start or keep a Wonder, and don't commit to a
 // Titan Gate. Resources fall back to the normal build rules.
-void customManageWonderAndTitanGate(ref StrategyData data)
+void godManageWonderAndTitanGate(ref StrategyData data)
 {
-	bool attacked = customUnderAttack();
+	bool attacked = godUnderAttack();
 	data.setFlag(cStrategyFlagBuildWonder, attacked == false);
 	data.setFlag(cStrategyFlagBuildTitan, attacked == false);
 	if (attacked == true)
 	{
-		customCancelBuildPlans(cUnitTypeWonder);
-		customHoldTitanGate();
+		godCancelBuildPlans(cUnitTypeWonder);
+		godHoldTitanGate();
 		return;
 	}
-	customReleaseTitanGate();
+	godReleaseTitanGate();
 }
 
 // Feeding an army to a Titan just loses the army. While one is on the field and we
 // cannot answer it — no Titan of our own, no army big enough to kill it — hold the
 // army at home, where the towers and our own gate are, and stop raiding into it.
-void customApplyTitanPolicy(ref StrategyData data)
+void godApplyTitanPolicy(ref StrategyData data)
 {
-	if (customEnemyTitanID() == -1)
+	if (godEnemyTitanID() == -1)
 	{
 		data.setFlag(cStrategyFlagCanAttack, true);
 		return;
 	}
 	bool canKillIt = kbUnitCount(cUnitTypeAbstractTitan, cMyID, cUnitStateAlive) >= 1
-		|| aiGetCurrentMilitaryPop() >= cCustomTitanHuntArmyPop;
+		|| aiGetCurrentMilitaryPop() >= cGodTitanHuntArmyPop;
 	data.setFlag(cStrategyFlagCanAttack, canKillIt);
 }
 
 //==============================================================================
 // Strategy
 //==============================================================================
-Strategy customBotStrategy()
+Strategy godBotStrategy()
 {
 	Strategy strategy;
 	strategy.mID = cStrategySPCCustom;
 	strategy.mAge = cAge1;
-	strategy.mName = "Custom Conqueror";
+	strategy.mName = "GodBot";
 
 	strategy.mInitFunc = [](ref StrategyData data) -> bool
 	{
-		aiEcho("=== [CustomBot] strategy init ===");
+		aiEcho("=== [GodBot] strategy init ===");
 		data.enableAllStrategyFlags();
-		customApplyNavalPolicy(data);
-		customApplyAttackCadence();
-		gCustomLastAge = kbPlayerGetAge(cMyID);
+		godApplyNavalPolicy(data);
+		godApplyAttackCadence();
+		gGodLastAge = kbPlayerGetAge(cMyID);
 		return true;
 	};
 
@@ -630,37 +630,37 @@ Strategy customBotStrategy()
 	strategy.mUpdateFunc = [](ref StrategyData data) -> bool
 	{
 		int age = kbPlayerGetAge(cMyID);
-		if (age != gCustomLastAge)
+		if (age != gGodLastAge)
 		{
-			gCustomLastAge = age;
-			customApplyAttackCadence();
+			gGodLastAge = age;
+			godApplyAttackCadence();
 		}
-		bool pushing = customShouldPush();
-		if (pushing != gCustomPushing)
+		bool pushing = godShouldPush();
+		if (pushing != gGodPushing)
 		{
-			gCustomPushing = pushing;
+			gGodPushing = pushing;
 			if (pushing == true)
 			{
-				aiEcho("[CustomBot] Committed to a decisive push.");
+				aiEcho("[GodBot] Committed to a decisive push.");
 			}
 			else
 			{
-				aiEcho("[CustomBot] Back to the slow rhythm.");
+				aiEcho("[GodBot] Back to the slow rhythm.");
 			}
-			customApplyAttackCadence();
+			godApplyAttackCadence();
 		}
-		customManageTinyMapHousing(data);
-		customManageWonderAndTitanGate(data);
-		customApplyTitanPolicy(data);
+		godManageTinyMapHousing(data);
+		godManageWonderAndTitanGate(data);
+		godApplyTitanPolicy(data);
 		return true;
 	};
 
 	return strategy;
 }
 
-void customBotStrategySetup()
+void godBotStrategySetup()
 {
-	Strategy strategy = customBotStrategy();
+	Strategy strategy = godBotStrategy();
 	gStrategyManager.addStrategy(strategy);
 }
 
@@ -669,16 +669,16 @@ void customBotStrategySetup()
 //==============================================================================
 
 // Scrap any warships that slip through when the map isn't a naval one.
-rule customNavalCleanupMonitor
+rule godNavalCleanupMonitor
 inactive
 minInterval 30
 {
-	if (gCustomNavalMap == true)
+	if (gGodNavalMap == true)
 	{
 		return;
 	}
 	int[] warships = new int(0, -1);
-	int queryID = kbUnitQueryCreate("CustomBot warships");
+	int queryID = kbUnitQueryCreate("GodBot warships");
 	kbUnitQuerySetPlayerID(queryID, cMyID, false);
 	kbUnitQuerySetUnitType(queryID, cUnitTypeLogicalTypeNavalMilitary);
 	kbUnitQuerySetState(queryID, cUnitStateAlive);
@@ -698,13 +698,13 @@ minInterval 30
 	kbUnitQueryDestroy(queryID);
 	if (warships.size() > 0)
 	{
-		aiEcho("[CustomBot] Not a naval map - scrapping " + warships.size() + " warship(s).");
+		aiEcho("[GodBot] Not a naval map - scrapping " + warships.size() + " warship(s).");
 		aiTaskDeleteUnits(warships);
 	}
 }
 
 // Every village (TC base) gets one Temple and one military building.
-rule customVillageMonitor
+rule godVillageMonitor
 inactive
 minInterval 20
 {
@@ -726,9 +726,9 @@ minInterval 20
 			createSimpleBuildPlan(cUnitTypeTemple, 1, 55, gMilitaryBuildingsCategoryID, baseID);
 			continue;
 		}
-		if (customBaseHasMilitaryBuilding(baseID) == false)
+		if (godBaseHasMilitaryBuilding(baseID) == false)
 		{
-			int puid = customPickMilitaryBuilding();
+			int puid = godPickMilitaryBuilding();
 			if (puid != -1)
 			{
 				createSimpleBuildPlan(puid, 1, 45, gMilitaryBuildingsCategoryID, baseID);
@@ -740,18 +740,18 @@ minInterval 20
 // Turrets upgraded as early as possible: research the next tower upgrade the
 // moment it is obtainable. We publish the plan through the engine's own
 // gTowerOffensiveResearchPlanID so the stock tower monitor defers to us.
-rule customTowerUpgradeMonitor
+rule godTowerUpgradeMonitor
 inactive
 minInterval 10
 {
 	if (cGameModeCurrent == cGameModeDeathmatch)
 	{
-		xsDisableRule("customTowerUpgradeMonitor");
+		xsDisableRule("godTowerUpgradeMonitor");
 		return;
 	}
 	if (cDifficultyCurrent == cDifficultyEasy)
 	{
-		xsDisableRule("customTowerUpgradeMonitor");
+		xsDisableRule("godTowerUpgradeMonitor");
 		return;
 	}
 	if (checkStrategyFlag(cStrategyFlagAutoResearchMilitaryUpgrades) == false)
@@ -766,16 +766,16 @@ minInterval 10
 	{
 		return;
 	}
-	if (areAtMaxConcurrentResearchPlans("customTowerUpgradeMonitor") == true)
+	if (areAtMaxConcurrentResearchPlans("godTowerUpgradeMonitor") == true)
 	{
 		return;
 	}
-	int tech = customNextTowerUpgrade();
+	int tech = godNextTowerUpgrade();
 	if (tech == -1)
 	{
 		return;
 	}
-	aiEcho("[CustomBot] Researching tower upgrade: " + kbTechGetName(tech) + ".");
+	aiEcho("[GodBot] Researching tower upgrade: " + kbTechGetName(tech) + ".");
 	gTowerOffensiveResearchPlanID = researchSimpleTech(tech, cUnitTypeSentryTower, -1, 70);
 	aiPlanSetEventHandler(gTowerOffensiveResearchPlanID, cPlanEventStateChange, "resetOffensiveTowerResearchPlan");
 }
@@ -783,9 +783,9 @@ minInterval 10
 // Pull back each attack that is bleeding out, outnumbered on the spot, or standing
 // in front of a Titan. Every attack is judged on its own, so a failing raid never
 // recalls the main army. Retreating is defensive, so this keeps running while
-// customApplyTitanPolicy holds attacks back: an army already in the field still
+// godApplyTitanPolicy holds attacks back: an army already in the field still
 // comes home.
-rule customRetreatMonitor
+rule godRetreatMonitor
 inactive
 minInterval 10
 {
@@ -815,15 +815,15 @@ minInterval 10
 		// Keep a plan's sample until its window has passed, so losses add up across checks.
 		int samplePop = ourPop;
 		int sampleTime = now;
-		int index = gCustomRetreatPlanIDs.find(planID);
-		if (index != -1 && (now - gCustomRetreatSampleTimes[index]) <= cCustomRetreatLossWindow)
+		int index = gGodRetreatPlanIDs.find(planID);
+		if (index != -1 && (now - gGodRetreatSampleTimes[index]) <= cGodRetreatLossWindow)
 		{
-			samplePop = gCustomRetreatSamplePops[index];
-			sampleTime = gCustomRetreatSampleTimes[index];
+			samplePop = gGodRetreatSamplePops[index];
+			sampleTime = gGodRetreatSampleTimes[index];
 		}
-		if (customAttackIsLosing(planID, units.size(), ourPop, samplePop) == true)
+		if (godAttackIsLosing(planID, units.size(), ourPop, samplePop) == true)
 		{
-			customRetreatPlan(planID);
+			godRetreatPlan(planID);
 			continue;
 		}
 		planIDs.add(planID);
@@ -831,14 +831,14 @@ minInterval 10
 		sampleTimes.add(sampleTime);
 	}
 	// Plans that ended or left the field drop out of the samples here.
-	gCustomRetreatPlanIDs = planIDs;
-	gCustomRetreatSamplePops = samplePops;
-	gCustomRetreatSampleTimes = sampleTimes;
+	gGodRetreatPlanIDs = planIDs;
+	gGodRetreatSamplePops = samplePops;
+	gGodRetreatSampleTimes = sampleTimes;
 }
 
 // When we can't commit to a full attack, send a small group to hit the enemy
 // economy instead (drop sites first, then villagers).
-rule customRaidMonitor
+rule godRaidMonitor
 inactive
 minInterval 90
 {
@@ -846,15 +846,15 @@ minInterval 90
 	{
 		return;
 	}
-	if (customUnderAttack() == true)
+	if (godUnderAttack() == true)
 	{
 		return;
 	}
-	if (gCustomPushing == true)
+	if (gGodPushing == true)
 	{
 		return; // Don't split the army while committing.
 	}
-	if (aiPlanGetIsIDValid(gCustomRaidPlanID) == true)
+	if (aiPlanGetIsIDValid(gGodRaidPlanID) == true)
 	{
 		return; // One raid at a time.
 	}
@@ -869,14 +869,14 @@ minInterval 90
 	{
 		return;
 	}
-	int raidTargetID = customFindRaidTarget(target);
+	int raidTargetID = godFindRaidTarget(target);
 	if (raidTargetID == -1)
 	{
 		return;
 	}
 	vector raidPoint = kbUnitGetPosition(raidTargetID);
 	vector gatherPoint = aiPlanGetVariableVector(gPrimaryLandDefendPlan, cDefendPlanGatherPoint, 0);
-	int planID = aiPlanCreate("CustomBot Raid", cPlanAttack, -1, gMilitaryAttackingCategoryID);
+	int planID = aiPlanCreate("GodBot Raid", cPlanAttack, -1, gMilitaryAttackingCategoryID);
 	aiPlanSetVariableInt(planID, cAttackPlanTargetMode, 0, cAttackPlanTargetModePoint);
 	aiPlanSetVariableVector(planID, cAttackPlanTargetPoint, 0, raidPoint);
 	aiPlanSetVariableVector(planID, cAttackPlanGatherPoint, 0, gatherPoint);
@@ -891,13 +891,13 @@ minInterval 90
 	addPlanToAllSuitableGodpowerPlans(planID);
 	aiPlanSetPriority(planID, 70);
 	aiPlanSetFlag(planID, cPlanFlagCantBeStolenFrom, true);
-	gCustomRaidPlanID = planID;
-	aiEcho("[CustomBot] Raiding enemy economy at " + raidPoint + ".");
+	gGodRaidPlanID = planID;
+	aiEcho("[GodBot] Raiding enemy economy at " + raidPoint + ".");
 }
 
 // One structured line every 30s for offline analysis. Read it back from
 // temp/Logs/MythRetoldAIOutputPlayer<N>.txt; see AGENTS.md.
-rule customTelemetryMonitor
+rule godTelemetryMonitor
 inactive
 minInterval 30
 {
@@ -908,20 +908,20 @@ minInterval 30
 		enemyAge = kbPlayerGetAge(target);
 	}
 	int enemyTitan = 0;
-	if (customEnemyTitanID() != -1)
+	if (godEnemyTitanID() != -1)
 	{
 		enemyTitan = 1;
 	}
 	string state = "hold";
-	if (gCustomPushing == true)
+	if (gGodPushing == true)
 	{
 		state = "push";
 	}
-	else if (customUnderAttack() == true)
+	else if (godUnderAttack() == true)
 	{
 		state = "defend";
 	}
-	aiEcho("[CBOT] t=" + xsGetTime()
+	aiEcho("[GBOT] t=" + xsGetTime()
 		+ " age=" + kbPlayerGetAge(cMyID)
 		+ " vills=" + kbUnitCount(cUnitTypeAbstractVillager, cMyID, cUnitStateAlive)
 		+ " pop=" + kbPlayerGetPop(cMyID) + "/" + kbPlayerGetPopCap(cMyID)
@@ -943,10 +943,10 @@ minInterval 30
 //==============================================================================
 void preInit()
 {
-	aiEcho("=== [CustomBot] preInit() - installing Conqueror strategy ===");
-	customApplyEconomy();
-	customApplyMinorGods();
-	setOverrideStrategy(customBotStrategySetup);
+	aiEcho("=== [GodBot] preInit() - installing Conqueror strategy ===");
+	godApplyEconomy();
+	godApplyMinorGods();
+	setOverrideStrategy(godBotStrategySetup);
 }
 
 //==============================================================================
@@ -958,11 +958,11 @@ void preInit()
 //==============================================================================
 void postInit()
 {
-	aiEcho("=== [CustomBot] postInit() - activating monitors ===");
-	xsEnableRule("customNavalCleanupMonitor");
-	xsEnableRule("customVillageMonitor");
-	xsEnableRule("customTowerUpgradeMonitor");
-	xsEnableRule("customRetreatMonitor");
-	xsEnableRule("customRaidMonitor");
-	xsEnableRule("customTelemetryMonitor");
+	aiEcho("=== [GodBot] postInit() - activating monitors ===");
+	xsEnableRule("godNavalCleanupMonitor");
+	xsEnableRule("godVillageMonitor");
+	xsEnableRule("godTowerUpgradeMonitor");
+	xsEnableRule("godRetreatMonitor");
+	xsEnableRule("godRaidMonitor");
+	xsEnableRule("godTelemetryMonitor");
 }

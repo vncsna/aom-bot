@@ -33,10 +33,10 @@ const int cCivOdin = 8;
 
 BOT_LOG = "\n".join([
     "00:00:00  (0): Main is starting",  # engine chatter, dropped
-    "00:00:00  (0): === [CustomBot] preInit() - installing Conqueror strategy ===",
-    "00:00:30  (30052): [CBOT] t=30 age=1 vills=8 pop=9/15 army=0 food=100 wood=100 gold=100 enemyAge=1 state=hold",
+    "00:00:00  (0): === [GodBot] preInit() - installing Conqueror strategy ===",
+    "00:00:30  (30052): [GBOT] t=30 age=1 vills=8 pop=9/15 army=0 food=100 wood=100 gold=100 enemyAge=1 state=hold",
     "00:00:59  (59052): --- Running Rule defendManager. ---",  # engine chatter, dropped
-    "00:21:00  (1260327): [CustomBot] Raiding enemy economy at 12.",
+    "00:21:00  (1260327): [GodBot] Raiding enemy economy at 12.",
 ])
 
 NO_BOT_LOG = "00:00:00  (0): Villager Priority startup.\n00:00:00  (0): Deleting Fish plans.\n"
@@ -45,7 +45,7 @@ NO_BOT_LOG = "00:00:00  (0): Villager Priority startup.\n00:00:00  (0): Deleting
 def write_run(logs, bot_log):
     (logs / "MythLog.txt").write_text(MYTHLOG)
     (logs / "MythAIConstantsPlayer1.txt").write_text(
-        CONSTANTS.format(player=1, culture=1, civ=5, script="custom_bot", personality=14))
+        CONSTANTS.format(player=1, culture=1, civ=5, script="god_bot", personality=14))
     (logs / "MythAIConstantsPlayer2.txt").write_text(
         CONSTANTS.format(player=2, culture=2, civ=8, script="chairon", personality=0))
     (logs / "MythRetoldAIOutputPlayer1.txt").write_bytes(bot_log.encode("utf-16"))
@@ -73,11 +73,11 @@ class ArchiveRunTest(unittest.TestCase):
         self.assertTrue(name.endswith("-mirage.log"), name)
 
         self.assertIn("# map: mirage", text)
-        self.assertIn("# player 1: custom_bot, personality 14, Isis (Egyptian)", text)
+        self.assertIn("# player 1: god_bot, personality 14, Isis (Egyptian)", text)
         self.assertIn("# player 2: chairon, Balanced, Odin (Norse)", text)
         self.assertIn("# notes: beat Balanced on Easy", text)
-        self.assertIn("[CBOT] t=30 age=1", text)
-        self.assertIn("[CustomBot] preInit()", text)
+        self.assertIn("[GBOT] t=30 age=1", text)
+        self.assertIn("[GodBot] preInit()", text)
         self.assertNotIn("defendManager", text)
 
     def test_refuses_a_log_with_no_bot_output(self):

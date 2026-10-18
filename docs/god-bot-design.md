@@ -1,6 +1,6 @@
-# Custom Bot Design
+# God Bot Design
 
-How the custom bot in `game/ai/custom_bot.xs` is put together and why. Background on
+How the custom bot in `game/ai/god_bot.xs` is put together and why. Background on
 how bot behaviour is expressed lives in [`ai-architecture.md`](ai-architecture.md).
 
 ## Goal
@@ -20,10 +20,10 @@ to the goal:
 
 ## Identity
 
-`CustomBot.personality` is purely cosmetic — it points the skirmish lobby name, tooltip
+`GodBot.personality` is purely cosmetic — it points the skirmish lobby name, tooltip
 and portrait at the Conqueror strings. Behaviour is not driven by the personality at all:
 per the official `How-to create your own skirmish AI.pdf`, the name in
-`personalities_mods.xml` generates the script constant (`CustomBot` → `cPersonalityCustomBot`),
+`personalities_mods.xml` generates the script constant (`GodBot` → `cPersonalityGodBot`),
 so we can never satisfy `cPersonalityCurrent == cPersonalityConqueror`. Because the bot
 replaces the strategy system with `setOverrideStrategy`, the Conqueror tuning is
 implemented directly instead. The generated index also makes the stock name lookup warn at
@@ -42,13 +42,13 @@ Config section in [`AGENTS.md`](../AGENTS.md).
 
 | Piece | Where | Job |
 |---|---|---|
-| Strategy | `customBotStrategy()` | Base policy: flags, naval, attack cadence, push state |
-| `customNavalCleanupMonitor` | 30s | Scrap warships on non-naval maps |
-| `customVillageMonitor` | 20s | One Temple + one military building per village |
-| `customTowerUpgradeMonitor` | 10s | Research tower upgrades as early as possible |
-| `customRetreatMonitor` | 10s | Pull an attack back when it is bleeding out |
-| `customRaidMonitor` | 90s | Hit the enemy economy with a small group |
-| `customTelemetryMonitor` | 30s | Emit a `[CBOT]` metrics line for offline analysis |
+| Strategy | `godBotStrategy()` | Base policy: flags, naval, attack cadence, push state |
+| `godNavalCleanupMonitor` | 30s | Scrap warships on non-naval maps |
+| `godVillageMonitor` | 20s | One Temple + one military building per village |
+| `godTowerUpgradeMonitor` | 10s | Research tower upgrades as early as possible |
+| `godRetreatMonitor` | 10s | Pull an attack back when it is bleeding out |
+| `godRaidMonitor` | 90s | Hit the enemy economy with a small group |
+| `godTelemetryMonitor` | 30s | Emit a `[GBOT]` metrics line for offline analysis |
 
 ## Behaviour
 
@@ -62,10 +62,10 @@ a slow push.
 god at random. We set `gOverrideClassicalMinorGod` / `gOverrideHeroicMinorGod` /
 `gOverrideMythicMinorGod` per major god, favouring economy, defence and late-game
 upgrades. The picks and the matchups behind them are in
-[`custom-bot-minor-gods.md`](custom-bot-minor-gods.md).
+[`god-bot-minor-gods.md`](god-bot-minor-gods.md).
 
 **Villages are complete.** Every Town Center base gets one Temple and one military
-building (`customVillageMonitor`). The engine already builds temples slowly; we just make
+building (`godVillageMonitor`). The engine already builds temples slowly; we just make
 sure a new village is never left without one.
 
 **Tiny maps build houses before the Armory.** On `tiny`, once the Temple is up the Armory
@@ -74,7 +74,7 @@ Housing is what turns a small map into a workable army, so it comes first.
 
 ### Defence
 
-**Turrets are upgraded immediately.** `customTowerUpgradeMonitor` researches the next
+**Turrets are upgraded immediately.** `godTowerUpgradeMonitor` researches the next
 obtainable tower upgrade as soon as we own a tower, ignoring the stock time gates (4
 minutes in Classical, 5 in Heroic, 6 in Mythic). It follows the engine's own progression
 and culture variants, publishes the plan through `gTowerOffensiveResearchPlanID`, and
@@ -91,45 +91,45 @@ investment is not wasted, and the bot re-arms it once the attack is over.
 
 Naval military only exists on a map that is really naval: an island map, or one where we
 start on a transport. Everywhere else the naval flags are cleared, `gOverrideNavalMaxMilitaryPop`
-is pinned to 0, and `customNavalCleanupMonitor` deletes any warship that slips through.
+is pinned to 0, and `godNavalCleanupMonitor` deletes any warship that slips through.
 Fishing and Docks are untouched — this is about warships only.
 
 ### Offence
 
 **A slow rhythm.** Conqueror's attack interval (by difficulty) is multiplied by
-`cCustomCadenceMultiplier` and re-applied on every age change. The bot should be
+`cGodCadenceMultiplier` and re-applied on every age change. The bot should be
 threatening, not frantic.
 
-**A decisive push when we are clearly ahead.** `customShouldPush()` fires when we are in
-Heroic or later, have a real army (`cCustomPushArmyPop`), and either the enemy is down to
-one base or we are an age ahead. While pushing the cadence drops to `cCustomPushInterval`
+**A decisive push when we are clearly ahead.** `godShouldPush()` fires when we are in
+Heroic or later, have a real army (`cGodPushArmyPop`), and either the enemy is down to
+one base or we are an age ahead. While pushing the cadence drops to `cGodPushInterval`
 and raids stop so the army stays massed. It is deliberately conservative — we only stop
 being patient once the game is effectively won.
 
-**Retreat when it is not working.** `customRetreatMonitor` judges each attack in the field
+**Retreat when it is not working.** `godRetreatMonitor` judges each attack in the field
 on its own: its army pop over the loss window, and the enemy count around it. It pulls that
 attack back when either a large share of it dies within the window, or the enemy on the
 spot clearly outnumbers it. Pulling back the main army also pushes the next attack out, so
 it regroups rather than re-committing; a failed raid is simply called off.
 
 **Never feed a Titan.** A Titan is one unit, so the outnumbered check never sees it, and it
-kills an army faster than the loss window notices. `customTitanNear` calls off any attack
-standing within `cCustomTitanFleeRadius` of one, and `customApplyTitanPolicy` holds attacks
+kills an army faster than the loss window notices. `godTitanNear` calls off any attack
+standing within `cGodTitanFleeRadius` of one, and `godApplyTitanPolicy` holds attacks
 and raids entirely while an enemy Titan is alive and we cannot answer it — no Titan of our
-own and less than `cCustomTitanHuntArmyPop` military pop. The army waits at home with the
+own and less than `cGodTitanHuntArmyPop` military pop. The army waits at home with the
 towers and our own gate instead of walking into it; once the army is big enough, or our own
 Titan is out, attacks resume on their normal rhythm.
 
 **Raid the economy otherwise.** When we cannot commit to a real attack and have spare army,
-`customRaidMonitor` sends a small group at an enemy drop site (falling back to a villager)
+`godRaidMonitor` sends a small group at an enemy drop site (falling back to a villager)
 to keep the pressure on without risking the main force.
 
 ## Telemetry
 
-`customTelemetryMonitor` emits one line every 30s:
+`godTelemetryMonitor` emits one line every 30s:
 
 ```
-[CBOT] t=… age=… vills=… pop=cur/cap army=… food=… wood=… gold=… enemyAge=… enemyTitan=0|1 state=hold|push|defend
+[GBOT] t=… age=… vills=… pop=cur/cap army=… food=… wood=… gold=… enemyAge=… enemyTitan=0|1 state=hold|push|defend
 ```
 
 It lands in the per-player AI log, `temp/Logs/MythRetoldAIOutputPlayer<N>.txt` (UTF-16).
@@ -141,14 +141,14 @@ run-metadata options are documented in [`../AGENTS.md`](../AGENTS.md).
 
 | Constant | Meaning |
 |---|---|
-| `cCustomCadenceMultiplier` | Extra slowdown on top of Conqueror's attack interval |
-| `cCustomMaxVillagerPop` | Villager count the economy targets |
-| `cCustomPushArmyPop` | Military pop required before we commit to a decisive push |
-| `cCustomPushInterval` | Seconds between attacks while pushing |
-| `cCustomHousePopHeadroomBase` | Free pop wanted before the Armory is allowed on tiny maps |
-| `cCustomRetreatLossPercent` | Share of the army lost that triggers a retreat |
-| `cCustomRetreatLossWindow` | How long that loss has to happen within |
-| `cCustomRetreatEnemyRatioPercent` | Enemy-to-us ratio at the attack that triggers a retreat |
+| `cGodCadenceMultiplier` | Extra slowdown on top of Conqueror's attack interval |
+| `cGodMaxVillagerPop` | Villager count the economy targets |
+| `cGodPushArmyPop` | Military pop required before we commit to a decisive push |
+| `cGodPushInterval` | Seconds between attacks while pushing |
+| `cGodHousePopHeadroomBase` | Free pop wanted before the Armory is allowed on tiny maps |
+| `cGodRetreatLossPercent` | Share of the army lost that triggers a retreat |
+| `cGodRetreatLossWindow` | How long that loss has to happen within |
+| `cGodRetreatEnemyRatioPercent` | Enemy-to-us ratio at the attack that triggers a retreat |
 
 ## Caveats
 

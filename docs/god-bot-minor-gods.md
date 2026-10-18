@@ -222,7 +222,7 @@ the Mythic default; Xolotl (myth units) when we want defensive myth.
 
 ## Changing these
 
-The picks live in `customApplyMinorGods()` in `custom_bot.xs`, one `case` per major god.
+The picks live in `godApplyMinorGods()` in `god_bot.xs`, one `case` per major god.
 They are a first pass based on each god's documented focus, **not** on measured results —
-revisit them once the telemetry in [`custom-bot-design.md`](custom-bot-design.md) shows
+revisit them once the telemetry in [`god-bot-design.md`](god-bot-design.md) shows
 which games are actually being lost and why.

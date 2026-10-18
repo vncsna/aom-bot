@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Archive the bot's own output from a match, with a metadata header.
 
-`custom_bot.xs` writes its diagnostics (`[CustomBot]`) and one telemetry line every
-30 seconds (`[CBOT]`) to the local player's AI output log:
+`god_bot.xs` writes its diagnostics (`[GodBot]`) and one telemetry line every
+30 seconds (`[GBOT]`) to the local player's AI output log:
 
   …/Games/Age of Mythology Retold/temp/Logs/MythRetoldAIOutputPlayer1.txt
 
@@ -30,7 +30,7 @@ LOGS = Path(os.environ.get(
 ))
 RUNS = Path(os.environ.get("AOM_RUNS", Path(__file__).resolve().parent.parent / "runs"))
 
-MARKERS = ("[CBOT]", "[CustomBot]")
+MARKERS = ("[GBOT]", "[GodBot]")
 
 
 def read_text(path):

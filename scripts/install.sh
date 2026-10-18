@@ -28,18 +28,18 @@ if ((${#accounts[@]} > 1)); then
 fi
 ACCOUNT="${accounts[0]}"
 
-MOD="$ACCOUNT/mods/local/CustomBot"
+MOD="$ACCOUNT/mods/local/GodBot"
 SCENARIO="$ACCOUNT/scenario"
 
 mkdir -p "$MOD/game/ai/personalities" "$SCENARIO"
 
-ln -sfn "$REPO/game/ai/custom_bot.xs"                         "$MOD/game/ai/custom_bot.xs"
-ln -sfn "$REPO/game/ai/personalities/CustomBot.personality"   "$MOD/game/ai/personalities/CustomBot.personality"
+ln -sfn "$REPO/game/ai/god_bot.xs"                         "$MOD/game/ai/god_bot.xs"
+ln -sfn "$REPO/game/ai/personalities/GodBot.personality"   "$MOD/game/ai/personalities/GodBot.personality"
 ln -sfn "$REPO/game/ai/personalities/personalities_mods.xml"  "$MOD/game/ai/personalities/personalities_mods.xml"
 
 # The Scenario Editor opens …/scenario/ by default.
-ln -sfn "$REPO/game/ai/custom_bot.xs" "$SCENARIO/custom_bot.xs"
+ln -sfn "$REPO/game/ai/god_bot.xs" "$SCENARIO/god_bot.xs"
 
-echo "Linked CustomBot into:"
+echo "Linked GodBot into:"
 echo "  $MOD"
-echo "  $SCENARIO/custom_bot.xs"
+echo "  $SCENARIO/god_bot.xs"

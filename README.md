@@ -1,11 +1,11 @@
-## AoM Retold — Custom Bot
+## AoM Retold — God Bot
 
 A custom AI bot mod for **Age of Mythology: Retold** (Steam App ID `1934680`), written
 in **XS** — the BANG engine's built-in scripting language.
 
-It installs as a **local mod** and appears in the skirmish AI dropdown as `CustomBot`.
+It installs as a **local mod** and appears in the skirmish AI dropdown as `GodBot`.
 The goal is a personality that wins 1v1 against the stock personalities on the same maps
-at the same difficulty; see [`docs/custom-bot-design.md`](docs/custom-bot-design.md) for
+at the same difficulty; see [`docs/god-bot-design.md`](docs/god-bot-design.md) for
 how it is built.
 
 ## Installing
@@ -19,15 +19,15 @@ back into it:
 
 This finds your Steam account directory under the Proton prefix and wires the mod folder
 and Scenario Editor symlink. It is idempotent — re-run it after moving the checkout, since
-the symlinks are absolute. Then pick **CustomBot** as an AI opponent in the skirmish lobby.
+the symlinks are absolute. Then pick **GodBot** as an AI opponent in the skirmish lobby.
 
 ## Docs
 
 - [`AGENTS.md`](AGENTS.md) — setup, file locations, engine behaviour and references.
 - [`docs/ai-architecture.md`](docs/ai-architecture.md) — how bot behavior is expressed.
 - [`docs/xs-syntax.md`](docs/xs-syntax.md) — XS syntax notes and parser traps.
-- [`docs/custom-bot-design.md`](docs/custom-bot-design.md) — the bot's design and goal.
-- [`docs/custom-bot-minor-gods.md`](docs/custom-bot-minor-gods.md) — the minor-god picks and matchups.
+- [`docs/god-bot-design.md`](docs/god-bot-design.md) — the bot's design and goal.
+- [`docs/god-bot-minor-gods.md`](docs/god-bot-minor-gods.md) — the minor-god picks and matchups.
 
 ## Legal
 

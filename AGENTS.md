@@ -1,4 +1,4 @@
-# AGENTS.md — AoM Retold Custom Bot Project
+# AGENTS.md — AoM Retold God Bot Project
 
 This document is the primary reference for AI agents and LLMs working on this project.
 It describes the project structure, file locations, game engine constraints, and the
@@ -25,8 +25,8 @@ achieve the behaviour, not to record how it was dictated.
 
 ## Documentation Conventions
 
-Docs that describe this bot directly are prefixed `custom-bot-` — for example
-`docs/custom-bot-design.md` and `docs/custom-bot-minor-gods.md`. General engine material
+Docs that describe this bot directly are prefixed `god-bot-` — for example
+`docs/god-bot-design.md` and `docs/god-bot-minor-gods.md`. General engine material
 that would apply to any bot keeps its own name, for example
 `docs/ai-architecture.md`.
 
@@ -61,27 +61,27 @@ directory and wire those symlinks.
 
 ### Repository Root (source of truth)
 ```
-<repo>/                                  ← this checkout
+<repo>/                                    ← this checkout
 ├── game/
 │   └── ai/
-│       ├── custom_bot.xs                ← Main entry-point script (edit this)
+│       ├── god_bot.xs                   ← Main entry-point script (edit this)
 │       └── personalities/
-│           ├── CustomBot.personality    ← Points game engine to custom_bot.xs
-│           └── personalities_mods.xml  ← Registers "CustomBot" in skirmish dropdown
-└── .editorconfig                       ← Coding standards (tab=3 for .xs)
+│           ├── GodBot.personality       ← Points game engine to god_bot.xs
+│           └── personalities_mods.xml   ← Registers "GodBot" in skirmish dropdown
+└── .editorconfig                        ← Coding standards (tab=3 for .xs)
 ```
 
 ### Local Mod Root (symlinks → repo)
 ```
 ~/.local/share/Steam/steamapps/compatdata/1934680/pfx/drive_c/users/steamuser/
-  Games/Age of Mythology Retold/<steam-id>/mods/local/CustomBot/
+  Games/Age of Mythology Retold/<steam-id>/mods/local/GodBot/
 ```
 The symlinks are absolute, so a moved or re-cloned checkout must be relinked by
 re-running `scripts/install.sh`.
 
 ### Scenario Editor Symlink
 ```
-…/<steam-id>/scenario/custom_bot.xs  →  symlink to repo game/ai/custom_bot.xs
+…/<steam-id>/scenario/god_bot.xs  →  symlink to repo game/ai/god_bot.xs
 ```
 The Scenario Editor file picker opens `…/scenario/` by default. The symlink means edits
 in the repo propagate instantly without copying. `scripts/install.sh` creates it too.
@@ -103,7 +103,7 @@ changing this file.
 
 **Don't enable `aiDebugScript` for bot runs.** It makes the XS debugger breakpoint on any
 XS warning, and a custom personality always trips one: `cPersonalityCurrent` is the custom
-personality's index (`14` for `CustomBot`, per `MythAIConstantsPlayer<N>.txt`), which no
+personality's index (`14` for `GodBot`, per `MythAIConstantsPlayer<N>.txt`), which no
 case in the base game's `getCurrentPersonalityName()` matches, so it calls `aiEchoWarning`
 ("Unknown cPersonalityCurrent.") during startup. The breakpoint suspends the bot's script
 there, so the bot does nothing for the whole match and its log stops on that line.
@@ -130,8 +130,8 @@ The BANG engine calls XS scripts in the following order on match start:
 
 ```
 Game Engine
-  └─ loads CustomBot.personality  →  reads <script>custom_bot</script>
-       └─ custom_bot.xs           →  include "core/main.xs"
+  └─ loads GodBot.personality  →  reads <script>god_bot</script>
+       └─ god_bot.xs           →  include "core/main.xs"
             └─ core/main.xs
                  ├─ preInit()     ← USER HOOK: overrides before engine setup
                  ├─ doStartupFlow()
@@ -217,13 +217,13 @@ expressed — the strategy system, `StrategyData` policy, attack waves, defend p
 rules, build orders and overrides — with a translation cheat-sheet for turning plain
 behavior descriptions into code. Start here when adding functionality.
 
-[`docs/custom-bot-design.md`](docs/custom-bot-design.md) describes how the custom bot is
+[`docs/god-bot-design.md`](docs/god-bot-design.md) describes how the custom bot is
 put together and why — its goal, architecture and behaviour.
 
 ### XS Language Notes
 [`docs/xs-syntax.md`](docs/xs-syntax.md) records the XS constructs the bot uses and the
 parser traps worth knowing — each rule verified against the shipped base-game scripts.
-Read it before editing `custom_bot.xs`; it is the practical companion to the official
+Read it before editing `god_bot.xs`; it is the practical companion to the official
 language PDFs below.
 
 There is no standalone XS compiler, so run `scripts/check_xs.py` before every game launch —
@@ -318,17 +318,17 @@ Use this to resolve numeric constant IDs (e.g. what `cUnitTypeHoplite` resolves 
 
 ## Bot Telemetry & Run Metadata
 
-`customTelemetryMonitor` in `custom_bot.xs` logs one metrics line every 30 seconds:
+`godTelemetryMonitor` in `god_bot.xs` logs one metrics line every 30 seconds:
 
 ```
-[CBOT] t=… age=… vills=… pop=cur/cap army=… food=… wood=… gold=… enemyAge=… enemyTitan=0|1 state=hold|push|defend
+[GBOT] t=… age=… vills=… pop=cur/cap army=… food=… wood=… gold=… enemyAge=… enemyTitan=0|1 state=hold|push|defend
 ```
 
 Where it lands (under the game's user data, `…/Games/Age of Mythology Retold/`):
 
 | Path | Contents |
 |---|---|
-| `temp/Logs/MythRetoldAIOutputPlayer<N>.txt` | Per-player AI output, **UTF-16** — the `[CBOT]` lines live here |
+| `temp/Logs/MythRetoldAIOutputPlayer<N>.txt` | Per-player AI output, **UTF-16** — the `[GBOT]` lines live here |
 | `temp/Logs/MythLog.txt` | General game log |
 | `temp/Logs/PerformanceMetrics/*.csv` | Per-session FPS/tick metrics only (no gameplay data) |
 | `<steam-id>/replays/Record GameN.mythrec` | Recorded games (binary, not parseable here) |
@@ -344,7 +344,7 @@ To let an agent reason about results later, capture per-match metadata:
 - **Manual results sheet** — cheapest, works today: date, map, size, difficulty, our civ,
   opponent personality, opponent civ, result, duration, notes.
 - **Telemetry log** — richest: run `scripts/archive_run.py [notes…]` right after a match.
-  It keeps the bot's own `[CustomBot]` events and `[CBOT]` telemetry and writes them to
+  It keeps the bot's own `[GodBot]` events and `[GBOT]` telemetry and writes them to
   `runs/<stamp>-<map>.log`, under a header naming the map and both players (read from
   `MythLog.txt` and the `MythAIConstantsPlayer<N>.txt` files). `scripts/parse_ai_log.py`
   then reads the telemetry back out. The engine truncates the per-player log when the next
