@@ -639,8 +639,17 @@ minInterval 30
 	int num = kbUnitQueryExecute(queryID);
 	for (int i = 0; i < num; i++)
 	{
-		warships.add(kbUnitQueryGetResult(queryID, i));
+		int unitID = kbUnitQueryGetResult(queryID, i);
+		// The query can hand back a unit that died since the KB was built;
+		// aiTaskDeleteUnits warns about those, so drop them here.
+		if (kbUnitGetIsIDValid(unitID) == true)
+		{
+			warships.add(unitID);
+		}
 	}
+	// The engine keeps a named query until it is destroyed; leaking one per run
+	// makes every later kbUnitQueryCreate warn that the name is taken.
+	kbUnitQueryDestroy(queryID);
 	if (warships.size() > 0)
 	{
 		aiEcho("[CustomBot] Not a naval map - scrapping " + warships.size() + " warship(s).");
