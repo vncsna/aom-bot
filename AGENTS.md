@@ -208,6 +208,12 @@ behavior descriptions into code. Start here when adding functionality.
 [`docs/custom-bot-design.md`](docs/custom-bot-design.md) describes how the custom bot is
 put together and why — its goal, architecture and behaviour.
 
+### XS Language Notes
+[`docs/xs-syntax.md`](docs/xs-syntax.md) records the XS constructs the bot uses and the
+parser traps worth knowing — each rule verified against the shipped base-game scripts.
+Read it before editing `custom_bot.xs`; it is the practical companion to the official
+language PDFs below.
+
 ### Athens Syscalls (XS API)
 Full Doxygen HTML reference for all AI/KB/XS syscalls. **Not tracked in this repo** — it is
 extracted from the game's own `doxygen_retail.7z` and excluded via `.gitignore`. Extract
