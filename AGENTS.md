@@ -50,8 +50,7 @@ directory and wire those symlinks.
 │       └── personalities/
 │           ├── CustomBot.personality    ← Points game engine to custom_bot.xs
 │           └── personalities_mods.xml  ← Registers "CustomBot" in skirmish dropdown
-└── .vscode/
-    └── settings.json                   ← XS coding standards (tab=3, rulers=130)
+└── .editorconfig                       ← Coding standards (tab=3 for .xs)
 ```
 
 ### Local Mod Root (symlinks → repo)

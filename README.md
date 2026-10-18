@@ -14,7 +14,7 @@ game/ai/
 └── personalities/
     ├── CustomBot.personality         Points the engine at custom_bot.xs
     └── personalities_mods.xml        Registers CustomBot in the skirmish dropdown
-.vscode/settings.json                 XS coding standards (tab=3, rulers at column 130)
+.editorconfig                         Coding standards (tab=3 for .xs)
 ```
 
 `custom_bot.xs` includes the base game's `core/main.xs`, which drives the engine

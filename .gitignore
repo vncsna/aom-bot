@@ -9,3 +9,5 @@ doxygen_retail.7z
 
 # --- OS / editor noise -----------------------------------------------------
 .DS_Store
+# Editor config is per-developer; standards live in .editorconfig.
+.vscode/

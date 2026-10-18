@@ -31,12 +31,11 @@ ACCOUNT="${accounts[0]}"
 MOD="$ACCOUNT/mods/local/CustomBot"
 SCENARIO="$ACCOUNT/scenario"
 
-mkdir -p "$MOD/game/ai/personalities" "$MOD/.vscode" "$SCENARIO"
+mkdir -p "$MOD/game/ai/personalities" "$SCENARIO"
 
 ln -sfn "$REPO/game/ai/custom_bot.xs"                         "$MOD/game/ai/custom_bot.xs"
 ln -sfn "$REPO/game/ai/personalities/CustomBot.personality"   "$MOD/game/ai/personalities/CustomBot.personality"
 ln -sfn "$REPO/game/ai/personalities/personalities_mods.xml"  "$MOD/game/ai/personalities/personalities_mods.xml"
-ln -sfn "$REPO/.vscode/settings.json"                         "$MOD/.vscode/settings.json"
 
 # The Scenario Editor opens …/scenario/ by default.
 ln -sfn "$REPO/game/ai/custom_bot.xs" "$SCENARIO/custom_bot.xs"
