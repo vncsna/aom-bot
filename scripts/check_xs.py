@@ -150,12 +150,28 @@ def check_rule_names(text, known_rules, report):
                 report(i, f"rule '{name}' is not defined anywhere")
 
 
+def joined_lines(lines):
+    """Yield (index, text) with lines that leave a '(' open joined to the next, so a
+    condition split across lines is seen whole. The index is the first line's."""
+    start, parts, depth = 0, [], 0
+    for i, line in enumerate(lines):
+        if not parts:
+            start = i
+        parts.append(line)
+        depth += line.count("(") - line.count(")")
+        if depth <= 0:
+            yield start, " ".join(parts)
+            parts, depth = [], 0
+    if parts:
+        yield start, " ".join(parts)
+
+
 def check_left_arithmetic(lines, report):
     """A comparison whose left operand is arithmetic must be parenthesised inside a
     compound condition. Walks the tokens before each top-level comparison, skipping
     over parenthesised groups, looking for an unbracketed '*' or '/'."""
     token = re.compile(r">=|<=|==|!=|&&|\|\||[()\[\]]|[A-Za-z0-9_.]+|[*/+\-<>]")
-    for i, line in enumerate(lines):
+    for i, line in joined_lines(lines):
         if "&&" not in line and "||" not in line:
             continue
         tokens = token.findall(line)

@@ -34,6 +34,11 @@ CASES = {
         "error 0308",
         False,
     ),
+    "arithmetic left of a comparison across lines": (
+        "void foo(int a, int b)\n{\n\tif (a > 0 &&\n\t\ta * 100 >= b)\n\t{\n\t}\n}\n",
+        "error 0308",
+        False,
+    ),
     "non-extern global": (
         "void foo()\n{\n\tgTitanGateCurrentState = 1;\n}\n",
         "not extern",
