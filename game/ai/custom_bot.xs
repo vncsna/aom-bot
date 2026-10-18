@@ -784,8 +784,13 @@ minInterval 90
 	aiPlanSetVariableInt(planID, cAttackPlanGatherWaitTime, 0, 20 * 1000);
 	aiPlanSetVariableInt(planID, cAttackPlanDoneMode, 0, cAttackPlanDoneModeNoTarget | cAttackPlanDoneModeNoUnits);
 	aiPlanAddUnitType(planID, cUnitTypeLogicalTypeLandMilitary, 2, 4, 8);
+	// Set up like the engine's own attacks: keep builders home, let god powers
+	// support the raid, and stop other plans pulling its units away.
+	preventSomeBuildersFromJoiningAttack(planID);
 	setDefaultAttackPlanTargetUnitTypes(planID);
+	addPlanToAllSuitableGodpowerPlans(planID);
 	aiPlanSetPriority(planID, 70);
+	aiPlanSetFlag(planID, cPlanFlagCantBeStolenFrom, true);
 	gCustomRaidPlanID = planID;
 	aiEcho("[CustomBot] Raiding enemy economy at " + raidPoint + ".");
 }
