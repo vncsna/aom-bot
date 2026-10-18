@@ -214,6 +214,10 @@ parser traps worth knowing — each rule verified against the shipped base-game 
 Read it before editing `custom_bot.xs`; it is the practical companion to the official
 language PDFs below.
 
+There is no standalone XS compiler, so run `scripts/check_xs.py` before every game launch —
+it statically checks the script against those rules, and
+`scripts/tests/test_check_xs.py` keeps the checker honest. CI runs both without the game.
+
 ### Athens Syscalls (XS API)
 Full Doxygen HTML reference for all AI/KB/XS syscalls. **Not tracked in this repo** — it is
 extracted from the game's own `doxygen_retail.7z` and excluded via `.gitignore`. Extract

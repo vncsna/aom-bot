@@ -6,6 +6,10 @@ scripts are written in it. The authoritative grammar is the game's own
 here). This file is the working subset the bot relies on, plus the parser traps that have
 actually bitten us.
 
+The engine compiles XS only at match start and there is no standalone compiler, so check
+changes with `scripts/check_xs.py` (see [Checking a change](#checking-a-change)) before
+launching the game.
+
 Every rule below was verified against the shipped base-game scripts under `game/ai/`.
 Where this file and those scripts disagree, the scripts are right — fix this file.
 
@@ -156,16 +160,25 @@ seconds.
 | `0047` | `could not parse the code for '<function>'` | Follows a syntax error inside that function. |
 | — | `could not compile file 'custom_bot.xs'` | Follows any of the above; the bot does not load. |
 
-## Before running a change
+## Checking a change
 
 The engine compiles XS only at match start and reports **one error at a time**, so a typo
-costs a full game launch to find. Check these first:
+costs a full game launch to find. There is no standalone XS compiler to run instead — the
+official VS Code extension only highlights syntax and shows hover docs — so this repo ships
+its own checker:
 
-1. Every `switch` case body is braced.
-2. Every function is defined before its first use (or declared `mutable`).
-3. Every global referenced is `extern`-declared or defined in this file.
-4. Braces, parentheses and brackets balance.
-5. No comparison inside `&&`/`||` has unparenthesised arithmetic on its left.
-6. Every engine function, constant and global exists — cross-check against the base-game
-   scripts and the generated `temp/Logs/MythAIConstantsPlayer1.txt`.
-7. Tabs for indentation, no trailing whitespace (see `.editorconfig`).
+```
+scripts/check_xs.py            # every check, needs the game installed
+scripts/check_xs.py --no-game  # structural checks only (used by CI)
+```
+
+It enforces the rules above: balanced delimiters, braced `switch` cases, definition order,
+`extern` globals, known constants and rule names, and the arithmetic-on-the-left trap.
+`scripts/tests/test_check_xs.py` holds one regression case per error we have actually hit.
+
+Two things it cannot do, so keep an eye on them:
+
+1. Symbols the shipped scripts never mention are unknown to it, so a genuine engine syscall
+   that no base-game script calls would be reported as missing.
+2. Tabs for indentation and no trailing whitespace (see `.editorconfig`) are style, not
+   syntax, and are not checked.
