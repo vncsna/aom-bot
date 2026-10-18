@@ -3,8 +3,8 @@
 //
 // A Conqueror-flavoured bot: slow, territorial, economy-heavy. Behaviour is
 // declared here and the engine's plan system executes it. See
-// docs/custom-bot-requirements.md for the requirements this implements and how
-// each one is translated into engine behaviour.
+// docs/custom-bot-design.md for the requirements this implements and how each
+// one is translated into engine behaviour.
 //==============================================================================
 include "core/main.xs";
 
@@ -198,41 +198,134 @@ void customSetMinorGods(int classical = -1, int heroic = -1, int mythic = -1)
 // Per major god, pick the minor gods that best suit an economy-first,
 // defence-minded, slow-push style. The engine ignores an override it cannot
 // obtain, so keying on the major god guarantees the pick is valid. The
-// reasoning behind each pick (and the god matchups) is in docs/minor-gods.md.
+// reasoning behind each pick (and the god matchups) is in
+// docs/custom-bot-minor-gods.md.
 void customApplyMinorGods()
 {
 	switch (cMyCiv)
 	{
 		// Greeks.
-		case cCivZeus:       customSetMinorGods(cTechClassicalAgeAthena, cTechHeroicAgeApollo, cTechMythicAgeHephaestus); break;
-		case cCivPoseidon:   customSetMinorGods(cTechClassicalAgeAres, cTechHeroicAgeAphrodite, cTechMythicAgeHephaestus); break;
-		case cCivHades:      customSetMinorGods(cTechClassicalAgeAthena, cTechHeroicAgeAphrodite, cTechMythicAgeHephaestus); break;
-		case cCivDemeter:    customSetMinorGods(cTechClassicalAgePan, cTechHeroicAgeHestia, cTechMythicAgeHera); break;
+		case cCivZeus:
+		{
+			customSetMinorGods(cTechClassicalAgeAthena, cTechHeroicAgeApollo, cTechMythicAgeHephaestus);
+			break;
+		}
+		case cCivPoseidon:
+		{
+			customSetMinorGods(cTechClassicalAgeAres, cTechHeroicAgeAphrodite, cTechMythicAgeHephaestus);
+			break;
+		}
+		case cCivHades:
+		{
+			customSetMinorGods(cTechClassicalAgeAthena, cTechHeroicAgeAphrodite, cTechMythicAgeHephaestus);
+			break;
+		}
+		case cCivDemeter:
+		{
+			customSetMinorGods(cTechClassicalAgePan, cTechHeroicAgeHestia, cTechMythicAgeHera);
+			break;
+		}
 		// Egyptians.
-		case cCivRa:         customSetMinorGods(cTechClassicalAgeBast, cTechHeroicAgeSekhmet, cTechMythicAgeHorus); break;
-		case cCivIsis:       customSetMinorGods(cTechClassicalAgeBast, cTechHeroicAgeNephthys, cTechMythicAgeThoth); break;
-		case cCivSet:        customSetMinorGods(cTechClassicalAgePtah, cTechHeroicAgeSekhmet, cTechMythicAgeHorus); break;
+		case cCivRa:
+		{
+			customSetMinorGods(cTechClassicalAgeBast, cTechHeroicAgeSekhmet, cTechMythicAgeHorus);
+			break;
+		}
+		case cCivIsis:
+		{
+			customSetMinorGods(cTechClassicalAgeBast, cTechHeroicAgeNephthys, cTechMythicAgeThoth);
+			break;
+		}
+		case cCivSet:
+		{
+			customSetMinorGods(cTechClassicalAgePtah, cTechHeroicAgeSekhmet, cTechMythicAgeHorus);
+			break;
+		}
 		// Norse.
-		case cCivThor:       customSetMinorGods(cTechClassicalAgeForseti, cTechHeroicAgeSkadi, cTechMythicAgeTyr); break;
-		case cCivOdin:       customSetMinorGods(cTechClassicalAgeHeimdall, cTechHeroicAgeSkadi, cTechMythicAgeTyr); break;
-		case cCivLoki:       customSetMinorGods(cTechClassicalAgeHeimdall, cTechHeroicAgeBragi, cTechMythicAgeTyr); break;
-		case cCivFreyr:      customSetMinorGods(cTechClassicalAgeUllr, cTechHeroicAgeAegir, cTechMythicAgeVidar); break;
+		case cCivThor:
+		{
+			customSetMinorGods(cTechClassicalAgeForseti, cTechHeroicAgeSkadi, cTechMythicAgeTyr);
+			break;
+		}
+		case cCivOdin:
+		{
+			customSetMinorGods(cTechClassicalAgeHeimdall, cTechHeroicAgeSkadi, cTechMythicAgeTyr);
+			break;
+		}
+		case cCivLoki:
+		{
+			customSetMinorGods(cTechClassicalAgeHeimdall, cTechHeroicAgeBragi, cTechMythicAgeTyr);
+			break;
+		}
+		case cCivFreyr:
+		{
+			customSetMinorGods(cTechClassicalAgeUllr, cTechHeroicAgeAegir, cTechMythicAgeVidar);
+			break;
+		}
 		// Atlanteans.
-		case cCivKronos:     customSetMinorGods(cTechClassicalAgePrometheus, cTechHeroicAgeRheia, cTechMythicAgeAtlas); break;
-		case cCivOranos:     customSetMinorGods(cTechClassicalAgeOceanus, cTechHeroicAgeHyperion, cTechMythicAgeHekate); break;
-		case cCivGaia:       customSetMinorGods(cTechClassicalAgeOceanus, cTechHeroicAgeRheia, cTechMythicAgeAtlas); break;
+		case cCivKronos:
+		{
+			customSetMinorGods(cTechClassicalAgePrometheus, cTechHeroicAgeRheia, cTechMythicAgeAtlas);
+			break;
+		}
+		case cCivOranos:
+		{
+			customSetMinorGods(cTechClassicalAgeOceanus, cTechHeroicAgeHyperion, cTechMythicAgeHekate);
+			break;
+		}
+		case cCivGaia:
+		{
+			customSetMinorGods(cTechClassicalAgeOceanus, cTechHeroicAgeRheia, cTechMythicAgeAtlas);
+			break;
+		}
 		// Chinese.
-		case cCivFuxi:       customSetMinorGods(cTechClassicalAgeXuannu, cTechHeroicAgeNuba, cTechMythicAgeHuangdi); break;
-		case cCivNuwa:       customSetMinorGods(cTechClassicalAgeHoutu, cTechHeroicAgeRushou, cTechMythicAgeZhurong); break;
-		case cCivShennong:   customSetMinorGods(cTechClassicalAgeHoutu, cTechHeroicAgeRushou, cTechMythicAgeHuangdi); break;
+		case cCivFuxi:
+		{
+			customSetMinorGods(cTechClassicalAgeXuannu, cTechHeroicAgeNuba, cTechMythicAgeHuangdi);
+			break;
+		}
+		case cCivNuwa:
+		{
+			customSetMinorGods(cTechClassicalAgeHoutu, cTechHeroicAgeRushou, cTechMythicAgeZhurong);
+			break;
+		}
+		case cCivShennong:
+		{
+			customSetMinorGods(cTechClassicalAgeHoutu, cTechHeroicAgeRushou, cTechMythicAgeHuangdi);
+			break;
+		}
 		// Japanese.
-		case cCivAmaterasu:  customSetMinorGods(cTechClassicalAgeAmeNoUzume, cTechHeroicAgeHachiman, cTechMythicAgeTakemikazuchi); break;
-		case cCivTsukuyomi:  customSetMinorGods(cTechClassicalAgeAmeNoUzume, cTechHeroicAgeHachiman, cTechMythicAgeOkuninushi); break;
-		case cCivSusanoo:    customSetMinorGods(cTechClassicalAgeMinakatatomi, cTechHeroicAgeRaijin, cTechMythicAgeTakemikazuchi); break;
+		case cCivAmaterasu:
+		{
+			customSetMinorGods(cTechClassicalAgeAmeNoUzume, cTechHeroicAgeHachiman, cTechMythicAgeTakemikazuchi);
+			break;
+		}
+		case cCivTsukuyomi:
+		{
+			customSetMinorGods(cTechClassicalAgeAmeNoUzume, cTechHeroicAgeHachiman, cTechMythicAgeOkuninushi);
+			break;
+		}
+		case cCivSusanoo:
+		{
+			customSetMinorGods(cTechClassicalAgeMinakatatomi, cTechHeroicAgeRaijin, cTechMythicAgeTakemikazuchi);
+			break;
+		}
 		// Aztecs.
-		case cCivHuitzilopochtli: customSetMinorGods(cTechClassicalAgePatecatl, cTechHeroicAgeCoatlicue, cTechMythicAgeTlaloc); break;
-		case cCivTezcatlipoca:    customSetMinorGods(cTechClassicalAgeHuehuecoyotl, cTechHeroicAgeCoyolxauhqui, cTechMythicAgeXolotl); break;
-		case cCivQuetzalcoatl:    customSetMinorGods(cTechClassicalAgePatecatl, cTechHeroicAgeCoatlicue, cTechMythicAgeTlaloc); break;
+		case cCivHuitzilopochtli:
+		{
+			customSetMinorGods(cTechClassicalAgePatecatl, cTechHeroicAgeCoatlicue, cTechMythicAgeTlaloc);
+			break;
+		}
+		case cCivTezcatlipoca:
+		{
+			customSetMinorGods(cTechClassicalAgeHuehuecoyotl, cTechHeroicAgeCoyolxauhqui, cTechMythicAgeXolotl);
+			break;
+		}
+		case cCivQuetzalcoatl:
+		{
+			customSetMinorGods(cTechClassicalAgePatecatl, cTechHeroicAgeCoatlicue, cTechMythicAgeTlaloc);
+			break;
+		}
 	}
 	aiEcho("[CustomBot] Minor gods: " + kbTechGetName(gOverrideClassicalMinorGod) + " / "
 		+ kbTechGetName(gOverrideHeroicMinorGod) + " / " + kbTechGetName(gOverrideMythicMinorGod) + ".");
