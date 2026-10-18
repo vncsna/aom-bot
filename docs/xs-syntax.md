@@ -52,6 +52,24 @@ A bad `case` aborts its whole function (error `0047`), and then the whole file
 - **`ref` parameters** pass by reference: `void pick(ref int techID)`.
 - **Lambdas** take the form `[](ref StrategyData data) -> bool { … };`.
 
+## Globals and visibility
+
+A global is **file-scoped unless declared `extern`**. The shared ones live in
+`core/globals.xs`:
+
+```c
+extern int gHouseUnit = -1;
+```
+
+A plain `int gFoo = -1;` in another file — for example `gTitanGateCurrentState` in
+`core/godpowers/godpowers.xs` — is private to that file. Referencing it from
+`custom_bot.xs` fails with `Error 0172: '<name>' is not a valid operator`. There is no way
+to reach it from here: use an `extern`-declared equivalent, a strategy flag, or a rule
+instead.
+
+Functions are different — one defined in an included file is visible, so the only ordering
+rule is the same-file one above.
+
 ## Types
 
 `bool`, `int`, `float`, `string`, `vector`, with `const` for compile-time constants. A
@@ -106,7 +124,9 @@ seconds.
 | `0221` | `parseSwitch failed` | Follows `0230`. |
 | `0310` | `invalid symbol lookup for '<name>'` | A function is called before it is declared. |
 | `0052` | `could not parse the code for THEN block` | Follows `0310` inside an `if` body. |
-| `0135` | `parseConditionDecl failed` | Follows `0310` inside a condition. |
+| `0135` | `parseConditionDecl failed` | Follows `0310` or `0172` inside a condition. |
+| `0172` | `'<name>' is not a valid operator` | A symbol is not visible — usually a global that is not `extern`. |
+| `0165` | `high level parseExpr2 failed` | Follows `0172`. |
 | `0047` | `could not parse the code for '<function>'` | Follows a syntax error inside that function. |
 | — | `could not compile file 'custom_bot.xs'` | Follows any of the above; the bot does not load. |
 
@@ -117,7 +137,8 @@ costs a full game launch to find. Check these first:
 
 1. Every `switch` case body is braced.
 2. Every function is defined before its first use (or declared `mutable`).
-3. Braces, parentheses and brackets balance.
-4. Every engine function, constant and global exists — cross-check against the base-game
+3. Every global referenced is `extern`-declared or defined in this file.
+4. Braces, parentheses and brackets balance.
+5. Every engine function, constant and global exists — cross-check against the base-game
    scripts and the generated `temp/Logs/MythAIConstantsPlayer1.txt`.
-5. Tabs for indentation, no trailing whitespace (see `.editorconfig`).
+6. Tabs for indentation, no trailing whitespace (see `.editorconfig`).
