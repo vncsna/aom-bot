@@ -182,6 +182,12 @@ gAttackWave.setPlayerToAttack(1);
 
 ## Reference Documentation
 
+### Authoring Bot Behavior
+[`docs/ai-architecture.md`](docs/ai-architecture.md) explains how bot behavior is
+expressed — the strategy system, `StrategyData` policy, attack waves, defend plans,
+rules, build orders and overrides — with a translation cheat-sheet for turning plain
+behavior descriptions into code. Start here when adding functionality.
+
 ### Athens Syscalls (XS API)
 Full Doxygen HTML reference for all AI/KB/XS syscalls. **Not tracked in this repo** — it is
 extracted from the game's own `doxygen_retail.7z` and excluded via `.gitignore`. Extract

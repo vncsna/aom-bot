@@ -50,6 +50,8 @@ Then pick **CustomBot** as an AI opponent in the skirmish lobby.
 
 - Full setup, file locations, engine behaviour and reference docs live in
   [`AGENTS.md`](AGENTS.md).
+- How bot behavior is expressed (strategies, attack waves, rules, overrides) and how to
+  translate behavior into code: [`docs/ai-architecture.md`](docs/ai-architecture.md).
 - Changes are tracked in the commit history.
 
 ## Legal
