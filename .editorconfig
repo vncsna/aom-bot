@@ -1,0 +1,27 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# XS follows the base game's convention of 3-space indents.
+[*.xs]
+indent_style = space
+indent_size = 3
+
+[*.{xml,personality}]
+indent_style = space
+indent_size = 4
+
+[*.{json,yml,yaml}]
+indent_style = space
+indent_size = 2
+
+[*.sh]
+indent_style = tab
+
+# Trailing whitespace is a hard line break in Markdown.
+[*.md]
+trim_trailing_whitespace = false
