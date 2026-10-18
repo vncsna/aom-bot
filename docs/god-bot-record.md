@@ -7,6 +7,36 @@ The raw data behind a row is the archived run in `runs/` (`scripts/archive_run.p
 behaviour itself is the commit in the first column — this file is a summary, not a second
 `git log`.
 
+## Which matches to run
+
+The goal is "always win", so a **loss is the signal**, not a win rate — you are hunting
+counterexamples. One match answers several questions at once: the bot's own `[GodBot]`
+events (retreats, pushes, raids, tower upgrades, Titan handling) land in the archived run,
+so read behaviour from the log rather than the result. Prefer a few matches that exercise
+different branches over many repeats of the same one.
+
+Hold a baseline fixed — one map, one difficulty, one opponent — so rows are comparable:
+
+- **Baseline: every change.** One land map, one opponent (currently mirage / Balanced). The
+  tripwire for a regression and the row comparable across commits.
+- **An aggressive opponent** (e.g. Attacker or Overwhelmer). Exercises defence: the Wonder
+  and Titan Gate hold under `gDefensivelyOverrun`, and the retreat logic.
+- **A passive opponent** (e.g. Defender or Passive). Exercises offence: whether the bot
+  closes a game the enemy will not leave, and whether the push/raid cadence presses.
+
+That is three matches for a general read of the bot. Add another only when a change reaches
+a branch those three cannot: a naval or tiny map for the naval-cleanup and tiny-map housing
+branches, a specific opponent, or another major god for the minor-god picks.
+
+Keep it small:
+
+- Run the baseline on **every** change; re-run a coverage match only when you change what it
+  exercises.
+- **Repeat only when a match is borderline or lost** — that is when a win rate is worth
+  measuring. Otherwise spend the run on an untried match instead of a repeat.
+- On a **loss**, vary one axis at a time — opponent, then map, then god — to find what the
+  bad case has in common.
+
 ## Results
 
 | Date | Commit | Map | Opponent | Result | Length | Notes |

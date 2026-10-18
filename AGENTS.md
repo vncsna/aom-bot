@@ -353,6 +353,3 @@ To let an agent reason about results later, capture per-match metadata:
   session starts, so archive *before* starting another match — otherwise that run's
   telemetry is gone.
 - **Replays** — full fidelity for a human, but binary; keep them for manual review.
-
-A useful test matrix is a few fixed maps × a fixed difficulty × each stock personality ×
-N repeats, so results are comparable.
