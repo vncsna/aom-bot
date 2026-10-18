@@ -44,6 +44,16 @@ CASES = {
         "error 0308",
         False,
     ),
+    "default after a parameter without one": (
+        "int near(vector location, float radius = 60.0)\n{\n\treturn 0;\n}\n",
+        "error 0016",
+        False,
+    ),
+    "parameter without a default": (
+        "bool near(vector location)\n{\n\treturn true;\n}\n",
+        "error 0016",
+        False,
+    ),
     "non-extern global": (
         "void foo()\n{\n\tgTitanGateCurrentState = 1;\n}\n",
         "not extern",

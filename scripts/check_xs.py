@@ -39,6 +39,7 @@ KEYWORDS = {
 }
 
 FUNC_DEF = re.compile(r"^\s*(mutable\s+)?(?:void|bool|int|float|string|vector|Strategy)(?:\[\])?\s+(\w+)\s*\(")
+PARAM_DEF = re.compile(r"^\s*(?:mutable\s+)?(?:void|bool|int|float|string|vector|Strategy)(?:\[\])?\s+(\w+)\s*\(([^)]*)\)")
 CALL = re.compile(r"\b([a-z]\w*)\s*\(")
 CASE = re.compile(r"^\s*case\b.*:\s*$")
 CASE_INLINE = re.compile(r"^\s*case\b.*:\s*\S")
@@ -198,6 +199,23 @@ def check_left_arithmetic(lines, report):
                 break
 
 
+def check_parameters(lines, report):
+    """A parameter is parsed as a declaration, so it must be initialised: every value
+    parameter needs a default (error 0016: expected '=' and found ',' or ')'). Only a
+    `ref` parameter is left bare."""
+    for i, line in joined_lines(lines):
+        m = PARAM_DEF.match(line)
+        if not m:
+            continue
+        for param in (p.strip() for p in m.group(2).split(",") if p.strip()):
+            # A function-pointer parameter truncates the match; stop rather than guess.
+            if "(" in param:
+                break
+            if "=" in param or param.startswith("ref") or param == "void":
+                continue
+            report(i + 1, f"'{param.split()[-1]}' needs a default value (error 0016)")
+
+
 def game_symbols():
     extern_globals, constants, rules, functions = set(), set(), set(), set()
     if not GAME_AI.is_dir():
@@ -241,6 +259,7 @@ def main():
         check_balance(lines, lambda ln, msg: problems.append((ln, msg)))
         check_switch(lines, lambda ln, msg: problems.append((ln, msg)))
         check_forward_refs(lines, lambda ln, msg: problems.append((ln, msg)))
+        check_parameters(lines, lambda ln, msg: problems.append((ln, msg)))
         check_left_arithmetic(lines, lambda ln, msg: problems.append((ln, msg)))
         if symbols:
             extern_globals, constants, rules, functions = symbols

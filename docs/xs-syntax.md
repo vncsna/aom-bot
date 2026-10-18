@@ -53,6 +53,22 @@ A bad `case` aborts its whole function (error `0047`), and then the whole file
   ```
 
 - **Default arguments are supported**: `void build(int type = -1, vector at = cInvalidVector)`.
+- **Every value parameter must have a default**: the parser reads a parameter as a
+  declaration, so it demands its `=`.
+
+  ```c
+  // Wrong. XS: Error 0016: expected '=' and found ')' (you must initialize all
+  // variables to a literal or const value).
+  bool near(vector location)
+
+  // Also wrong: expected '=' and found ','.
+  int near(vector location, float radius = 60.0)
+
+  // Right.
+  int near(vector location = cInvalidVector, float radius = 60.0)
+  ```
+
+  Only a `ref` parameter is left bare: `void defend(ref float powerToDefendWith)`.
 - **`ref` parameters** pass by reference: `void pick(ref int techID)`.
 - **Lambdas** take the form `[](ref StrategyData data) -> bool { … };`.
 
@@ -162,6 +178,8 @@ seconds.
 | `0172` | `'<name>' is not a valid operator` | A symbol is not visible — usually a global that is not `extern`. |
 | `0165` | `high level parseExpr2 failed` | Follows `0172` or `0308`. |
 | `0308` | `illogical or invalid expression` | A comparison's left operand is an unparenthesised `*` or `/` inside a compound condition. |
+| `0016` | `expected '=' and found ','` / `… found ')'` | A parameter has no default value. |
+| `0045` | `could not parse parameter declaration` | Follows `0016`. |
 | `0047` | `could not parse the code for '<function>'` | Follows a syntax error inside that function. |
 | — | `could not compile file 'god_bot.xs'` | Follows any of the above; the bot does not load. |
 
@@ -178,8 +196,8 @@ scripts/check_xs.py --no-game  # structural checks only (used by CI)
 ```
 
 It enforces the rules above: balanced delimiters, braced `switch` cases, definition order,
-`extern` globals, known constants, functions and rule names, and the
-multiply-or-divide-on-the-left trap, including conditions split across lines.
+parameter initialisation, `extern` globals, known constants, functions and rule names, and
+the multiply-or-divide-on-the-left trap, including conditions split across lines.
 `scripts/tests/test_check_xs.py` holds one regression case per kind of error.
 
 Engine constants and syscalls are never defined in XS, so the checker learns them from
