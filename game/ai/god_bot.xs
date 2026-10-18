@@ -163,7 +163,7 @@ int godNextTowerUpgrade()
 
 // How much enemy military is sitting on a point. The bot sees the whole map, so
 // it never has to scout to know this.
-int godEnemyMilitaryNear(vector location, float radius = 60.0)
+int godEnemyMilitaryNear(vector location = cInvalidVector, float radius = 60.0)
 {
 	return getUnitCountByLocation(cUnitTypeLogicalTypeLandMilitary, cPlayerRelationEnemyNotGaia,
 		cUnitStateAlive, location, radius);
@@ -213,7 +213,7 @@ int godEnemyTitanID()
 }
 
 // A Titan counts as one enemy unit, so the outnumbered check never sees it coming.
-bool godTitanNear(vector location)
+bool godTitanNear(vector location = cInvalidVector)
 {
 	return getUnitCountByLocation(cUnitTypeAbstractTitan, cPlayerRelationEnemyNotGaia,
 		cUnitStateAlive, location, cGodTitanFleeRadius) > 0;
