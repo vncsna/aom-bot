@@ -14,7 +14,7 @@ The repository is the source of truth; the game's local mod folder just holds sy
 back into it:
 
 ```sh
-./install.sh
+./scripts/install.sh
 ```
 
 This finds your Steam account directory under the Proton prefix and wires the mod folder
@@ -26,6 +26,7 @@ the symlinks are absolute. Then pick **CustomBot** as an AI opponent in the skir
 - [`AGENTS.md`](AGENTS.md) — setup, file locations, engine behaviour and references.
 - [`docs/ai-architecture.md`](docs/ai-architecture.md) — how bot behavior is expressed.
 - [`docs/custom-bot-design.md`](docs/custom-bot-design.md) — the bot's design and goal.
+- [`docs/custom-bot-minor-gods.md`](docs/custom-bot-minor-gods.md) — the minor-god picks and matchups.
 
 ## Legal
 

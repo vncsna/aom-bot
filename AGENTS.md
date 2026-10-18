@@ -23,6 +23,15 @@ achieve the behaviour, not to record how it was dictated.
 
 ---
 
+## Documentation Conventions
+
+Docs that describe this bot directly are prefixed `custom-bot-` — for example
+`docs/custom-bot-design.md` and `docs/custom-bot-minor-gods.md`. General engine material
+that would apply to any bot keeps its own name, for example
+`docs/ai-architecture.md`.
+
+---
+
 ## Platform Notes (Immutable)
 
 - **OS:** Linux
@@ -47,7 +56,7 @@ achieve the behaviour, not to record how it was dictated.
 
 This repository **is** the mod source. The live mod directory inside the Steam Proton
 prefix holds nothing but symlinks back into this checkout, so edits here reach the game
-immediately — nothing is copied or duplicated. Run `./install.sh` to create the mod
+immediately — nothing is copied or duplicated. Run `./scripts/install.sh` to create the mod
 directory and wire those symlinks.
 
 ### Repository Root (source of truth)
@@ -68,14 +77,14 @@ directory and wire those symlinks.
   Games/Age of Mythology Retold/<steam-id>/mods/local/CustomBot/
 ```
 The symlinks are absolute, so a moved or re-cloned checkout must be relinked by
-re-running `install.sh`.
+re-running `scripts/install.sh`.
 
 ### Scenario Editor Symlink
 ```
 …/<steam-id>/scenario/custom_bot.xs  →  symlink to repo game/ai/custom_bot.xs
 ```
 The Scenario Editor file picker opens `…/scenario/` by default. The symlink means edits
-in the repo propagate instantly without copying. `install.sh` creates it too.
+in the repo propagate instantly without copying. `scripts/install.sh` creates it too.
 
 ### AI Debugger Config
 ```
@@ -279,6 +288,43 @@ Provides hover documentation for all XS syscalls.
 
 AI constants file (generated at game launch when `aiDebug` is active):
 ```
-…/<steam-id>/temp/Logs/MythAIConstantsPlayer1.txt
+…/Games/Age of Mythology Retold/temp/Logs/MythAIConstantsPlayer1.txt
 ```
 Use this to resolve numeric constant IDs (e.g. what `cUnitTypeHoplite` resolves to).
+
+---
+
+## Bot Telemetry & Run Metadata
+
+`customTelemetryMonitor` in `custom_bot.xs` logs one metrics line every 30 seconds:
+
+```
+[CBOT] t=… age=… vills=… pop=cur/cap army=… food=… wood=… gold=… enemyAge=… state=hold|push|defend
+```
+
+Where it lands (under the game's user data, `…/Games/Age of Mythology Retold/`):
+
+| Path | Contents |
+|---|---|
+| `temp/Logs/MythRetoldAIOutputPlayer<N>.txt` | Per-player AI output, **UTF-16** — the `[CBOT]` lines live here |
+| `temp/Logs/MythLog.txt` | General game log |
+| `temp/Logs/PerformanceMetrics/*.csv` | Per-session FPS/tick metrics only (no gameplay data) |
+| `<steam-id>/replays/Record GameN.mythrec` | Recorded games (binary, not parseable here) |
+
+`scripts/parse_ai_log.py <log>` turns a player log into a table.
+
+There is no XS file-write syscall, so `aiEcho` logging is the only telemetry channel.
+
+### Saving run metadata
+
+To let an agent reason about results later, capture per-match metadata:
+
+- **Manual results sheet** — cheapest, works today: date, map, size, difficulty, our civ,
+  opponent personality, opponent civ, result, duration, notes.
+- **Telemetry log** — richest: archive the `[CBOT]` lines (with a metadata header) per
+  match into a `runs/` folder. The game overwrites the log each session, so grab it right
+  after the match.
+- **Replays** — full fidelity for a human, but binary; keep them for manual review.
+
+A useful test matrix is a few fixed maps × a fixed difficulty × each stock personality ×
+N repeats, so results are comparable.

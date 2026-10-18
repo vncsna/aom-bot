@@ -30,25 +30,36 @@ implemented directly instead.
 
 ## Architecture
 
-- `preInit()` installs the override strategy. The stock strategies are never added.
+- `preInit()` sets the economy target and the minor-god picks, then installs the override
+  strategy. The stock strategies are never added.
 - The strategy enables every engine flag, then applies our policy (naval off, slow
   cadence). A strategy update runs once a second for the policy that has to react to the
-  live game (tiny-map housing, Wonder/Titan Gate gating).
-- Four monitors handle everything that is naturally periodic. They are enabled in
-  `postInit()`.
+  live game (tiny-map housing, Wonder/Titan Gate gating, push state).
+- Monitors handle everything that is naturally periodic. They are enabled in `postInit()`.
 
 | Piece | Where | Job |
 |---|---|---|
-| Strategy | `customBotStrategy()` | Base policy: flags, naval, attack cadence |
+| Strategy | `customBotStrategy()` | Base policy: flags, naval, attack cadence, push state |
 | `customNavalCleanupMonitor` | 30s | Scrap warships on non-naval maps |
 | `customVillageMonitor` | 20s | One Temple + one military building per village |
 | `customTowerUpgradeMonitor` | 10s | Research tower upgrades as early as possible |
 | `customRetreatMonitor` | 10s | Pull an attack back when it is bleeding out |
 | `customRaidMonitor` | 90s | Hit the enemy economy with a small group |
+| `customTelemetryMonitor` | 30s | Emit a `[CBOT]` metrics line for offline analysis |
 
 ## Behaviour
 
 ### Economy and expansion
+
+**A real boom.** `preInit()` sets `gOverrideMaxVillagerPop` so the engine's auto-eco
+maintains a large villager count. Conqueror is eco-heavy; the villager mass is what funds
+a slow push.
+
+**Minor gods are chosen, not rolled.** The engine picks the Classical/Heroic/Mythic minor
+god at random. We set `gOverrideClassicalMinorGod` / `gOverrideHeroicMinorGod` /
+`gOverrideMythicMinorGod` per major god, favouring economy, defence and late-game
+upgrades. The picks and the matchups behind them are in
+[`custom-bot-minor-gods.md`](custom-bot-minor-gods.md).
 
 **Villages are complete.** Every Town Center base gets one Temple and one military
 building (`customVillageMonitor`). The engine already builds temples slowly; we just make
@@ -86,6 +97,12 @@ Fishing and Docks are untouched — this is about warships only.
 `cCustomCadenceMultiplier` and re-applied on every age change. The bot should be
 threatening, not frantic.
 
+**A decisive push when we are clearly ahead.** `customShouldPush()` fires when we are in
+Heroic or later, have a real army (`cCustomPushArmyPop`), and either the enemy is down to
+one base or we are an age ahead. While pushing the cadence drops to `cCustomPushInterval`
+and raids stop so the army stays massed. It is deliberately conservative — we only stop
+being patient once the game is effectively won.
+
 **Retreat when it is not working.** `customRetreatMonitor` samples the attacking army's pop
 and the enemy count around the attack. It pulls the army back when either a large share of
 it dies quickly, or the enemy on the spot clearly outnumbers us. Pulling back also pushes
@@ -95,11 +112,27 @@ the next attack out, so the army regroups rather than re-committing.
 `customRaidMonitor` sends a small group at an enemy drop site (falling back to a villager)
 to keep the pressure on without risking the main force.
 
+## Telemetry
+
+`customTelemetryMonitor` emits one line every 30s:
+
+```
+[CBOT] t=… age=… vills=… pop=cur/cap army=… food=… wood=… gold=… enemyAge=… state=hold|push|defend
+```
+
+It lands in the per-player AI log, `temp/Logs/MythRetoldAIOutputPlayer<N>.txt` (UTF-16).
+`scripts/parse_ai_log.py` turns it into a per-run summary. This is the feedback loop that
+turns the tuning constants from guesses into measurements; the log locations and the
+run-metadata options are documented in [`../AGENTS.md`](../AGENTS.md).
+
 ## Tuning
 
 | Constant | Meaning |
 |---|---|
 | `cCustomCadenceMultiplier` | Extra slowdown on top of Conqueror's attack interval |
+| `cCustomMaxVillagerPop` | Villager count the economy targets |
+| `cCustomPushArmyPop` | Military pop required before we commit to a decisive push |
+| `cCustomPushInterval` | Seconds between attacks while pushing |
 | `cCustomHousePopHeadroomBase` | Free pop wanted before the Armory is allowed on tiny maps |
 | `cCustomRetreatLossPercent` | Share of the army lost that triggers a retreat |
 | `cCustomRetreatLossWindow` | How long that loss has to happen within |
@@ -109,8 +142,10 @@ to keep the pressure on without risking the main force.
 
 - **Not yet run in-game.** XS cannot be linted here. The file follows the same patterns as
   the base game scripts and the shipped campaign bots, but it needs a live match to confirm.
-- **The retreat and raid numbers are starting points.** They are the first things to tune
-  after a game; the raid in particular only targets the first enemy drop site it finds and
-  does not yet prefer gold mines specifically.
+- **The minor-god picks are a first pass.** They follow each god's documented focus, not
+  measured results; revisit once telemetry shows which games are lost and why.
+- **The tuning numbers are starting points.** Retreat, raid and push thresholds are the
+  first things to adjust after a game; the raid in particular only targets the first enemy
+  drop site it finds and does not yet prefer gold mines specifically.
 - **"Under attack" means `gDefensivelyOverrun`.** That is the engine's serious-trouble
   signal, so the Wonder/Titan Gate gating only kicks in under real pressure.
