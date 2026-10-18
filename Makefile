@@ -2,9 +2,12 @@
 #
 #   make check      - static checks and regression tests (what CI runs)
 #   make install    - link the live mod folder to this checkout
-#   make archive    - archive the last match's bot output (NOTES="…" to annotate)
-#   make parse      - read a run's telemetry back: make parse LOG=runs/<file>.log
+#   make archive    - archive the last match's bot output
+#   make parse      - read the newest archived run back as a table
 PYTHON ?= python3
+
+# The newest archive wins, so `make parse` needs no arguments.
+LOG ?= $(shell ls -t runs/*.log 2>/dev/null | head -1)
 
 .PHONY: all check lint test install archive parse
 
@@ -25,7 +28,8 @@ install:
 	./scripts/install.sh
 
 archive:
-	$(PYTHON) scripts/archive_run.py $(NOTES)
+	$(PYTHON) scripts/archive_run.py
 
 parse:
+	@test -n "$(LOG)" || { echo "no archives in runs/ - run 'make archive' after a match" >&2; exit 1; }
 	$(PYTHON) scripts/parse_ai_log.py $(LOG)
