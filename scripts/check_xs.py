@@ -183,10 +183,10 @@ def game_symbols():
         for line in text.splitlines():
             if m := EXTERN_DECL.match(line):
                 extern_globals.add(m.group(1))
-            if m := CONST_DEF.match(line):
-                constants.add(m.group(1))
             if m := RULE_DEF.match(line):
                 rules.add(m.group(1))
+        # Engine constants (cMyID, cUnitType...) are never defined in XS, only used.
+        constants |= set(re.findall(r"\b(c[A-Z]\w*)\b", text))
     if CONSTANTS.is_file():
         constants |= set(re.findall(r"\b(c[A-Z]\w*)\b", CONSTANTS.read_text(errors="ignore")))
     return extern_globals, constants, rules
