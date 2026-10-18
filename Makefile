@@ -15,21 +15,21 @@ all: check
 
 # The static checks need no game install; they use it for symbol checks when present.
 lint:
-	$(PYTHON) scripts/validate_personalities.py
-	$(PYTHON) scripts/check_xs.py
+	@$(PYTHON) scripts/validate_personalities.py
+	@$(PYTHON) scripts/check_xs.py
 
 test:
-	$(PYTHON) scripts/tests/test_check_xs.py
-	$(PYTHON) scripts/tests/test_archive_run.py
+	@$(PYTHON) scripts/tests/test_check_xs.py
+	@$(PYTHON) scripts/tests/test_archive_run.py
 
 check: lint test
 
 install:
-	./scripts/install.sh
+	@./scripts/install.sh
 
 archive:
-	$(PYTHON) scripts/archive_run.py
+	@$(PYTHON) scripts/archive_run.py
 
 parse:
 	@test -n "$(LOG)" || { echo "no archives in runs/ - run 'make archive' after a match" >&2; exit 1; }
-	$(PYTHON) scripts/parse_ai_log.py $(LOG)
+	@$(PYTHON) scripts/parse_ai_log.py $(LOG)
