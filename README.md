@@ -3,57 +3,29 @@
 A custom AI bot mod for **Age of Mythology: Retold** (Steam App ID `1934680`), written
 in **XS** — the BANG engine's built-in scripting language.
 
-The bot is installed as a **local mod** and appears in the skirmish AI dropdown as
-`CustomBot`.
-
-## Layout
-
-```
-game/ai/
-├── custom_bot.xs                     Main entry-point script
-└── personalities/
-    ├── CustomBot.personality         Points the engine at custom_bot.xs
-    └── personalities_mods.xml        Registers CustomBot in the skirmish dropdown
-.editorconfig                         Coding standards (tab=3 for .xs)
-```
-
-`custom_bot.xs` includes the base game's `core/main.xs`, which drives the engine
-startup flow and exposes two override hooks:
-
-| Hook | Runs | Use it for |
-|---|---|---|
-| `preInit()` | Before engine base-building and KB analysis | Overriding globals, installing a custom strategy |
-| `postInit()` | After engine startup completes | Tweaking live plans, build orders and army plans |
+It installs as a **local mod** and appears in the skirmish AI dropdown as `CustomBot`.
+The goal is a personality that wins 1v1 against the stock personalities on the same maps
+at the same difficulty; see [`docs/custom-bot-design.md`](docs/custom-bot-design.md) for
+how it is built.
 
 ## Installing
 
 The repository is the source of truth; the game's local mod folder just holds symlinks
-back into it. Point them at your checkout with:
+back into it:
 
 ```sh
 ./install.sh
 ```
 
-This finds your Steam account directory under the Proton prefix and creates the mod
-folder plus the Scenario Editor symlink. It is idempotent — re-run it after cloning or
-moving the checkout, since the symlinks are absolute.
+This finds your Steam account directory under the Proton prefix and wires the mod folder
+and Scenario Editor symlink. It is idempotent — re-run it after moving the checkout, since
+the symlinks are absolute. Then pick **CustomBot** as an AI opponent in the skirmish lobby.
 
-Then pick **CustomBot** as an AI opponent in the skirmish lobby.
+## Docs
 
-## Current limitations
-
-- The personality reuses stock string IDs (`STR_AI_PERS_ATTACKER`) and the aggressive
-  portrait, so it appears as **"Attacker"** in the lobby. A custom stringtable + icon mod
-  would be needed for a distinct name.
-
-## Development notes
-
-- Full setup, file locations, engine behaviour and reference docs live in
-  [`AGENTS.md`](AGENTS.md).
-- How bot behavior is expressed (strategies, attack waves, rules, overrides) and how to
-  translate behavior into code: [`docs/ai-architecture.md`](docs/ai-architecture.md).
-- How the custom bot is designed and why:
-  [`docs/custom-bot-design.md`](docs/custom-bot-design.md).
+- [`AGENTS.md`](AGENTS.md) — setup, file locations, engine behaviour and references.
+- [`docs/ai-architecture.md`](docs/ai-architecture.md) — how bot behavior is expressed.
+- [`docs/custom-bot-design.md`](docs/custom-bot-design.md) — the bot's design and goal.
 - Changes are tracked in the commit history.
 
 ## Legal
