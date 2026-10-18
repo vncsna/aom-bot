@@ -23,10 +23,18 @@ const int cCustomRetreatLossPercent = 50;
 const int cCustomRetreatLossWindow = 45;
 const int cCustomRetreatEnemyRatioPercent = 150;
 
+// Decisive push: once we are clearly ahead, attack on a fast cadence instead.
+const int cCustomPushArmyPop = 40;   // military pop required before we commit
+const int cCustomPushInterval = 90;  // seconds between attacks while pushing
+
+// Economy: Conqueror-style boom target for the villager count.
+const int cCustomMaxVillagerPop = 90;
+
 //==============================================================================
 // State
 //==============================================================================
 bool gCustomNavalMap = false;
+bool gCustomPushing = false;
 int gCustomLastAge = -1;
 int gCustomRetreatSamplePop = -1;
 int gCustomRetreatSampleTime = 0;
@@ -174,6 +182,62 @@ void customRetreatArmy()
 // Strategy policy
 //==============================================================================
 
+// A Conqueror booms: ask for a large villager count to fund a slow push.
+void customApplyEconomy()
+{
+	gOverrideMaxVillagerPop = cCustomMaxVillagerPop;
+}
+
+void customSetMinorGods(int classical = -1, int heroic = -1, int mythic = -1)
+{
+	gOverrideClassicalMinorGod = classical;
+	gOverrideHeroicMinorGod = heroic;
+	gOverrideMythicMinorGod = mythic;
+}
+
+// Per major god, pick the minor gods that best suit an economy-first,
+// defence-minded, slow-push style. The engine ignores an override it cannot
+// obtain, so keying on the major god guarantees the pick is valid. The
+// reasoning behind each pick (and the god matchups) is in docs/minor-gods.md.
+void customApplyMinorGods()
+{
+	switch (cMyCiv)
+	{
+		// Greeks.
+		case cCivZeus:       customSetMinorGods(cTechClassicalAgeAthena, cTechHeroicAgeApollo, cTechMythicAgeHephaestus); break;
+		case cCivPoseidon:   customSetMinorGods(cTechClassicalAgeAres, cTechHeroicAgeAphrodite, cTechMythicAgeHephaestus); break;
+		case cCivHades:      customSetMinorGods(cTechClassicalAgeAthena, cTechHeroicAgeAphrodite, cTechMythicAgeHephaestus); break;
+		case cCivDemeter:    customSetMinorGods(cTechClassicalAgePan, cTechHeroicAgeHestia, cTechMythicAgeHera); break;
+		// Egyptians.
+		case cCivRa:         customSetMinorGods(cTechClassicalAgeBast, cTechHeroicAgeSekhmet, cTechMythicAgeHorus); break;
+		case cCivIsis:       customSetMinorGods(cTechClassicalAgeBast, cTechHeroicAgeNephthys, cTechMythicAgeThoth); break;
+		case cCivSet:        customSetMinorGods(cTechClassicalAgePtah, cTechHeroicAgeSekhmet, cTechMythicAgeHorus); break;
+		// Norse.
+		case cCivThor:       customSetMinorGods(cTechClassicalAgeForseti, cTechHeroicAgeSkadi, cTechMythicAgeTyr); break;
+		case cCivOdin:       customSetMinorGods(cTechClassicalAgeHeimdall, cTechHeroicAgeSkadi, cTechMythicAgeTyr); break;
+		case cCivLoki:       customSetMinorGods(cTechClassicalAgeHeimdall, cTechHeroicAgeBragi, cTechMythicAgeTyr); break;
+		case cCivFreyr:      customSetMinorGods(cTechClassicalAgeUllr, cTechHeroicAgeAegir, cTechMythicAgeVidar); break;
+		// Atlanteans.
+		case cCivKronos:     customSetMinorGods(cTechClassicalAgePrometheus, cTechHeroicAgeRheia, cTechMythicAgeAtlas); break;
+		case cCivOranos:     customSetMinorGods(cTechClassicalAgeOceanus, cTechHeroicAgeHyperion, cTechMythicAgeHekate); break;
+		case cCivGaia:       customSetMinorGods(cTechClassicalAgeOceanus, cTechHeroicAgeRheia, cTechMythicAgeAtlas); break;
+		// Chinese.
+		case cCivFuxi:       customSetMinorGods(cTechClassicalAgeXuannu, cTechHeroicAgeNuba, cTechMythicAgeHuangdi); break;
+		case cCivNuwa:       customSetMinorGods(cTechClassicalAgeHoutu, cTechHeroicAgeRushou, cTechMythicAgeZhurong); break;
+		case cCivShennong:   customSetMinorGods(cTechClassicalAgeHoutu, cTechHeroicAgeRushou, cTechMythicAgeHuangdi); break;
+		// Japanese.
+		case cCivAmaterasu:  customSetMinorGods(cTechClassicalAgeAmeNoUzume, cTechHeroicAgeHachiman, cTechMythicAgeTakemikazuchi); break;
+		case cCivTsukuyomi:  customSetMinorGods(cTechClassicalAgeAmeNoUzume, cTechHeroicAgeHachiman, cTechMythicAgeOkuninushi); break;
+		case cCivSusanoo:    customSetMinorGods(cTechClassicalAgeMinakatatomi, cTechHeroicAgeRaijin, cTechMythicAgeTakemikazuchi); break;
+		// Aztecs.
+		case cCivHuitzilopochtli: customSetMinorGods(cTechClassicalAgePatecatl, cTechHeroicAgeCoatlicue, cTechMythicAgeTlaloc); break;
+		case cCivTezcatlipoca:    customSetMinorGods(cTechClassicalAgeHuehuecoyotl, cTechHeroicAgeCoyolxauhqui, cTechMythicAgeXolotl); break;
+		case cCivQuetzalcoatl:    customSetMinorGods(cTechClassicalAgePatecatl, cTechHeroicAgeCoatlicue, cTechMythicAgeTlaloc); break;
+	}
+	aiEcho("[CustomBot] Minor gods: " + kbTechGetName(gOverrideClassicalMinorGod) + " / "
+		+ kbTechGetName(gOverrideHeroicMinorGod) + " / " + kbTechGetName(gOverrideMythicMinorGod) + ".");
+}
+
 // No navy unless the map is really naval; otherwise shut naval military down.
 void customApplyNavalPolicy(ref StrategyData data)
 {
@@ -192,15 +256,58 @@ void customApplyNavalPolicy(ref StrategyData data)
 	gOverrideNavalMaxMilitaryPop = 0;
 }
 
-// Conqueror's slow rhythm, slowed down further.
+// Conqueror's slow rhythm, slowed down further; faster once we are pushing.
 void customApplyAttackCadence()
 {
-	int interval = xsFloatToInt(selectByDifficultyFloat(20, 15, 9, 7, 5, 5) * 60.0 * cCustomCadenceMultiplier);
+	int interval = 0;
+	if (gCustomPushing == true)
+	{
+		interval = cCustomPushInterval;
+	}
+	else
+	{
+		interval = xsFloatToInt(selectByDifficultyFloat(20, 15, 9, 7, 5, 5) * 60.0 * cCustomCadenceMultiplier);
+	}
 	gAttackManager.mBaseAttackInterval = interval;
 	gAttackManager.mAttackInterval = interval;
 	gNavalAttackManager.mBaseAttackInterval = interval;
 	gNavalAttackManager.mAttackInterval = interval;
 	aiEcho("[CustomBot] Attack interval set to " + interval + " seconds.");
+}
+
+// Are we clearly ahead enough to commit to a decisive push? Conservative on
+// purpose: we only stop being patient once the game is effectively won.
+bool customShouldPush()
+{
+	if (customUnderAttack() == true)
+	{
+		return false;
+	}
+	int age = kbPlayerGetAge(cMyID);
+	if (age < cAge3)
+	{
+		return false; // Don't commit before Heroic.
+	}
+	if (aiGetCurrentMilitaryPop() < cCustomPushArmyPop)
+	{
+		return false;
+	}
+	int target = aiGetMostHatedPlayerID();
+	if (target == -1)
+	{
+		return false;
+	}
+	// The enemy is crumbling: one base left.
+	if (kbUnitCount(cUnitTypeAbstractTownCenter, target, cUnitStateAlive) <= 1)
+	{
+		return true;
+	}
+	// We are an age ahead and have a real army.
+	if (age > kbPlayerGetAge(target))
+	{
+		return true;
+	}
+	return false;
 }
 
 // On Tiny maps we want houses before the Armory: hold the Armory until the
@@ -320,6 +427,20 @@ Strategy customBotStrategy()
 		if (age != gCustomLastAge)
 		{
 			gCustomLastAge = age;
+			customApplyAttackCadence();
+		}
+		bool pushing = customShouldPush();
+		if (pushing != gCustomPushing)
+		{
+			gCustomPushing = pushing;
+			if (pushing == true)
+			{
+				aiEcho("[CustomBot] Committed to a decisive push.");
+			}
+			else
+			{
+				aiEcho("[CustomBot] Back to the slow rhythm.");
+			}
 			customApplyAttackCadence();
 		}
 		customManageTinyMapHousing(data);
@@ -532,6 +653,10 @@ minInterval 90
 	{
 		return;
 	}
+	if (gCustomPushing == true)
+	{
+		return; // Don't split the army while committing.
+	}
 	int target = aiGetMostHatedPlayerID();
 	if (target == -1)
 	{
@@ -573,6 +698,8 @@ minInterval 90
 void preInit()
 {
 	aiEcho("=== [CustomBot] preInit() - installing Conqueror strategy ===");
+	customApplyEconomy();
+	customApplyMinorGods();
 	setOverrideStrategy(customBotStrategySetup);
 }
 
