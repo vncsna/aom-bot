@@ -442,23 +442,17 @@ void customManageTinyMapHousing(ref StrategyData data)
 	data.setFlag(cStrategyFlagBuildArmory, true);
 }
 
+// Pause the engine's Titan Gate placement while we're being pushed. Its state
+// machine lives in file-scoped globals inside godpowers.xs, so the rule itself is
+// the only handle we have: disabling it suspends placement, and re-enabling
+// resumes it from wherever it stopped.
 void customHoldTitanGate()
 {
 	if (xsIsRuleEnabled("titanGateConstructionMonitor") == false)
 	{
 		return;
 	}
-	if (gTitanGateCurrentState != cStateBegin && gTitanGateCurrentState != cStateWaitingForFoundation)
-	{
-		return;
-	}
 	aiEcho("[CustomBot] Under attack - postponing the Titan Gate.");
-	if (aiPlanGetIsIDValid(gTitanGatePlanID) == true)
-	{
-		aiPlanDestroy(gTitanGatePlanID);
-	}
-	gTitanGatePlanID = -1;
-	gTitanGateCurrentState = cStateBegin;
 	xsDisableRule("titanGateConstructionMonitor");
 	gCustomHeldTitanGate = true;
 }
@@ -478,18 +472,19 @@ void customReleaseTitanGate()
 	xsRuleIgnoreIntervalOnce("titanGateConstructionMonitor");
 }
 
-// While we're being pushed, don't start or keep a Wonder, and postpone an
-// uncommitted Titan Gate. Resources fall back to the normal build rules.
+// While we're being pushed, don't start or keep a Wonder, and don't commit to a
+// Titan Gate. Resources fall back to the normal build rules.
 void customManageWonderAndTitanGate(ref StrategyData data)
 {
-	if (customUnderAttack() == true)
+	bool attacked = customUnderAttack();
+	data.setFlag(cStrategyFlagBuildWonder, attacked == false);
+	data.setFlag(cStrategyFlagBuildTitan, attacked == false);
+	if (attacked == true)
 	{
-		data.setFlag(cStrategyFlagBuildWonder, false);
 		customCancelBuildPlans(cUnitTypeWonder);
 		customHoldTitanGate();
 		return;
 	}
-	data.setFlag(cStrategyFlagBuildWonder, true);
 	customReleaseTitanGate();
 }
 
