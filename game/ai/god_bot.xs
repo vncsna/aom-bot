@@ -494,6 +494,8 @@ void godApplyMinorGods()
 }
 
 // No navy unless the map is really naval; otherwise shut naval military down.
+// Applied at init and again on every age change, because the engine re-enables its
+// default strategy flags as the game goes on.
 void godApplyNavalPolicy(ref StrategyData data)
 {
 	gGodNavalMap = godIsNavalMap();
@@ -704,6 +706,9 @@ Strategy godBotStrategy()
 		{
 			gGodLastAge = age;
 			godApplyAttackCadence();
+			// The engine re-enables its default strategy flags as the game goes on, so
+			// the naval shutdown has to be re-applied at each age, not just at init.
+			godApplyNavalPolicy(data);
 		}
 		bool pushing = godShouldPush();
 		if (pushing != gGodPushing)
@@ -768,7 +773,15 @@ minInterval 30
 	kbUnitQueryDestroy(queryID);
 	if (warships.size() > 0)
 	{
-		aiEcho("[GodBot] Not a naval map - scrapping " + warships.size() + " warship(s).");
+		// Name what leaked: on a map with water something still queues a warship
+		// even with every naval flag cleared, and the log is the only way to find it.
+		string leaked = "";
+		for (int i = 0; i < warships.size(); i++)
+		{
+			leaked = leaked + " " + kbProtoUnitGetName(kbUnitGetProtoUnitID(warships[i]))
+				+ "#" + warships[i] + " at " + kbUnitGetPosition(warships[i]) + ";";
+		}
+		aiEcho("[GodBot] Not a naval map - scrapping " + warships.size() + " warship(s):" + leaked);
 		aiTaskDeleteUnits(warships);
 	}
 }

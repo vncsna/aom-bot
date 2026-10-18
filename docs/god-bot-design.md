@@ -115,7 +115,10 @@ wasted, and the bot re-arms it once the attack is over.
 Naval military only exists on a map that is really naval: an island map, or one where we
 start on a transport. Everywhere else the naval flags are cleared,
 `gOverrideNavalMaxMilitaryPop` is pinned to 0, and `godNavalCleanupMonitor` deletes any
-warship that slips through. Fishing and Docks are untouched — this is about warships only.
+warship that slips through, naming the unit it deletes so a leak can be traced back to its
+source. The policy is re-applied at every age change, not only at init, because the engine
+re-enables its default flags as the game goes on. Fishing and Docks are untouched — this is
+about warships only.
 
 ### Offence
 
