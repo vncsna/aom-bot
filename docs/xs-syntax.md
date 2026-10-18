@@ -76,8 +76,8 @@ rule is the same-file one above.
 
 ## Expressions and conditions
 
-A comparison whose **left** operand is an arithmetic expression must be parenthesised when
-it sits inside a compound condition:
+A comparison whose **left** operand multiplies or divides (`*`, `/`) must be parenthesised
+when it sits inside a compound condition (`&&` or `||`):
 
 ```c
 // Rejected: Error 0308: illogical or invalid expression.
@@ -87,9 +87,14 @@ if (lostPop > 0 && lostPop * 100 >= sample * percent)
 if (wantedPop != 0 && (navyPop * 0.8) > enemyWarships)
 ```
 
-Arithmetic on the **right** of a comparison needs no parentheses
-(`a < b * 1.6 && a > b * 0.4` appears in `core/economy/trade.xs`), and a lone comparison
-without `&&` is fine either way.
+The rule does not cover the rest:
+
+- `+` and `-` on the left are fine:
+  `lastUpdateTime + nextTargetUpdateInterval <= xsGetTime() || …` is in
+  `core/economy/economy.xs`.
+- Arithmetic on the **right** needs no parentheses: `a < b * 1.6 && a > b * 0.4` is in
+  `core/economy/trade.xs`.
+- A lone comparison without `&&` or `||` is fine either way.
 
 Cleaner still, and what this repo prefers: compute into a local, then compare two simple
 values.
@@ -156,7 +161,7 @@ seconds.
 | `0135` | `parseConditionDecl failed` | Follows `0310` or `0172` inside a condition. |
 | `0172` | `'<name>' is not a valid operator` | A symbol is not visible — usually a global that is not `extern`. |
 | `0165` | `high level parseExpr2 failed` | Follows `0172` or `0308`. |
-| `0308` | `illogical or invalid expression` | A comparison's left operand is unparenthesised arithmetic inside a compound condition. |
+| `0308` | `illogical or invalid expression` | A comparison's left operand is an unparenthesised `*` or `/` inside a compound condition. |
 | `0047` | `could not parse the code for '<function>'` | Follows a syntax error inside that function. |
 | — | `could not compile file 'custom_bot.xs'` | Follows any of the above; the bot does not load. |
 
@@ -173,12 +178,16 @@ scripts/check_xs.py --no-game  # structural checks only (used by CI)
 ```
 
 It enforces the rules above: balanced delimiters, braced `switch` cases, definition order,
-`extern` globals, known constants and rule names, and the arithmetic-on-the-left trap.
-`scripts/tests/test_check_xs.py` holds one regression case per error we have actually hit.
+`extern` globals, known constants, functions and rule names, and the
+multiply-or-divide-on-the-left trap, including conditions split across lines.
+`scripts/tests/test_check_xs.py` holds one regression case per kind of error.
+
+Engine constants and syscalls are never defined in XS, so the checker learns them from
+what the shipped scripts use (plus `MythAIConstantsPlayer1.txt` when it exists).
 
 Two things it cannot do, so keep an eye on them:
 
-1. Symbols the shipped scripts never mention are unknown to it, so a genuine engine syscall
-   that no base-game script calls would be reported as missing.
+1. A genuine constant or syscall that no base-game script uses is reported as unknown.
+   Confirm it in the Athens syscall reference before working around the warning.
 2. Tabs for indentation and no trailing whitespace (see `.editorconfig`) are style, not
    syntax, and are not checked.
