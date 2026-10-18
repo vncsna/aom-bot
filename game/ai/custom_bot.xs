@@ -688,6 +688,39 @@ minInterval 90
 	aiEcho("[CustomBot] Raiding enemy economy at " + raidPoint + ".");
 }
 
+// One structured line every 30s for offline analysis. Read it back from
+// temp/Logs/MythRetoldAIOutputPlayer<N>.txt; see AGENTS.md.
+rule customTelemetryMonitor
+inactive
+minInterval 30
+{
+	int target = aiGetMostHatedPlayerID();
+	int enemyAge = -1;
+	if (target != -1)
+	{
+		enemyAge = kbPlayerGetAge(target);
+	}
+	string state = "hold";
+	if (gCustomPushing == true)
+	{
+		state = "push";
+	}
+	else if (customUnderAttack() == true)
+	{
+		state = "defend";
+	}
+	aiEcho("[CBOT] t=" + xsGetTime()
+		+ " age=" + kbPlayerGetAge(cMyID)
+		+ " vills=" + kbUnitCount(cUnitTypeAbstractVillager, cMyID, cUnitStateAlive)
+		+ " pop=" + kbPlayerGetPop(cMyID) + "/" + kbPlayerGetPopCap(cMyID)
+		+ " army=" + aiGetCurrentMilitaryPop()
+		+ " food=" + xsFloatToInt(kbResourceGet(cResourceFood))
+		+ " wood=" + xsFloatToInt(kbResourceGet(cResourceWood))
+		+ " gold=" + xsFloatToInt(kbResourceGet(cResourceGold))
+		+ " enemyAge=" + enemyAge
+		+ " state=" + state);
+}
+
 //==============================================================================
 /*	preInit()
 
@@ -718,4 +751,5 @@ void postInit()
 	xsEnableRule("customTowerUpgradeMonitor");
 	xsEnableRule("customRetreatMonitor");
 	xsEnableRule("customRaidMonitor");
+	xsEnableRule("customTelemetryMonitor");
 }

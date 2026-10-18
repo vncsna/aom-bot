@@ -11,3 +11,6 @@ doxygen_retail.7z
 .DS_Store
 # Editor config is per-developer; standards live in .editorconfig.
 .vscode/
+
+# --- Python -----------------------------------------------------------------
+__pycache__/
