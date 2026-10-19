@@ -295,6 +295,17 @@ int godSlowInterval()
 	return xsFloatToInt(selectByDifficultyFloat(20, 15, 9, 7, 5, 5) * 60.0 * cGodCadenceMultiplier);
 }
 
+// The rhythm the bot is on right now: the fast one while pushing, the patient one
+// otherwise.
+int godCadenceInterval()
+{
+	if (gGodPushing == true)
+	{
+		return cGodPushInterval;
+	}
+	return godSlowInterval();
+}
+
 // Is this attack bleeding out, outnumbered, or standing in front of a Titan?
 bool godAttackIsLosing(int planID = -1, int ourCount = 0, int ourPop = 0, int samplePop = 0)
 {
@@ -355,10 +366,11 @@ void godRetreatPlan(int planID = -1)
 	// shouldn't hold up the main attack, and a cavalry raid runs on its own clock.
 	if (planID != gGodRaidPlanID && planID != gGodCavRaidPlanID)
 	{
-		// Regroup on the slow rhythm, whatever the cadence happens to be right now:
-		// a retreat during a push must still buy a full slow interval.
+		// Regroup on the rhythm the bot is actually on: the fast interval while
+		// pushing, the full slow one otherwise. Setting it here keeps the wait
+		// deliberate rather than whatever the last cadence write left behind.
 		gAttackManager.mLastAttackTime = xsGetTime();
-		gAttackManager.mAttackInterval = godSlowInterval();
+		gAttackManager.mAttackInterval = godCadenceInterval();
 	}
 }
 
@@ -535,14 +547,11 @@ void godApplyNavalPolicy(ref StrategyData data)
 	gOverrideNavalMaxMilitaryPop = 0;
 }
 
-// The slow rhythm, faster once we are pushing.
+// Publish the current rhythm to the engine. The bot owns the timing through the
+// attack gate, so this is what the gate and the next attack both read.
 void godApplyAttackCadence()
 {
-	int interval = godSlowInterval();
-	if (gGodPushing == true)
-	{
-		interval = cGodPushInterval;
-	}
+	int interval = godCadenceInterval();
 	gAttackManager.mBaseAttackInterval = interval;
 	gAttackManager.mAttackInterval = interval;
 	gNavalAttackManager.mBaseAttackInterval = interval;
