@@ -55,8 +55,11 @@ const int cGodStalemateSeconds = 360;
 
 // The Titan is paid from the bank, not from the engine's needs bookkeeping, which
 // only reports a surplus long after the bank is full. Keep this share of the cost
-// on top of it so the army keeps training.
+// on top of it so the army keeps training. Favour is exempt, see godBankCovers.
 const int cGodTitanReservePercent = 50;
+
+// How often to say why the Titan is not being bought, once we are stalemated.
+const int cGodTitanBlockedLogSeconds = 60;
 
 // Decisive push: once we are clearly ahead, attack on a fast cadence instead.
 const int cGodPushArmyPop = 40;   // military pop required before we commit
@@ -161,6 +164,7 @@ bool gGodHeldTitanGate = false;
 bool gGodStalemate = false;
 int gGodMythicSince = -1;
 bool gGodTitanReached = false;
+int gGodTitanBlockedLogTime = -1;
 int gGodRaidPlanID = -1;
 bool gGodRaidIsCavalry = false;
 int gGodEnemyCount = 0;
@@ -935,11 +939,18 @@ void godUpdateStalemate()
 }
 
 // Can the bank pay for this tech with the reserve on top? The army keeps the rest.
+// Favour is the exception: it is not banked like the other three, it is spent as it
+// arrives on myth units, so a reserve on top of it only means the tech waits for a
+// surplus that never comes. Its cost is taken at face value.
 bool godBankCovers(int techID = -1)
 {
 	float[] cost = kbTechGetCost(techID);
 	for (int i = 0; i < cNumberResources; i++)
 	{
+		if (i == cResourceFavor)
+		{
+			continue;
+		}
 		float needed = (cost[i] * (100 + cGodTitanReservePercent)) / 100.0;
 		if (kbResourceGet(i) < needed)
 		{
@@ -949,6 +960,23 @@ bool godBankCovers(int techID = -1)
 	// Favour is billed on its own; the engine checks it separately for the same tech.
 	float neededFavor = kbTechGetCostPerResource(techID, cResourceFavor);
 	return kbResourceGet(cResourceFavor) >= neededFavor;
+}
+
+// A stalled stalemate is invisible otherwise: only the successful purchase logs, so a
+// run with no Titan cannot say which of the guards held. Name the guard, at most this
+// often, with the bank beside it.
+void godLogTitanBlocked(string reason = "")
+{
+	int now = xsGetTime();
+	if (now - gGodTitanBlockedLogTime < cGodTitanBlockedLogSeconds)
+	{
+		return;
+	}
+	gGodTitanBlockedLogTime = now;
+	aiEcho("[GodBot] Titan held: " + reason + " (food=" + xsFloatToInt(kbResourceGet(cResourceFood))
+		+ " wood=" + xsFloatToInt(kbResourceGet(cResourceWood))
+		+ " gold=" + xsFloatToInt(kbResourceGet(cResourceGold))
+		+ " favor=" + xsFloatToInt(kbResourceGet(cResourceFavor)) + ").");
 }
 
 // The engine researches Secrets of the Titans only on a surplus its needs
@@ -964,6 +992,7 @@ void godResearchTitanTech()
 	}
 	if (godUnderAttack() == true)
 	{
+		godLogTitanBlocked("under attack");
 		return;
 	}
 	if (kbGodPowerGetNumCharges(cProtoPowerTitanGate, cMyID) >= 1)
@@ -972,14 +1001,17 @@ void godResearchTitanTech()
 	}
 	if (kbTechGetStatus(cTechSecretsOfTheTitans) != cTechStatusObtainable)
 	{
+		godLogTitanBlocked("the game does not offer Secrets of the Titans");
 		return;
 	}
 	if (aiPlanGetIDByTypeAndVariableIntValue(cPlanResearch, cResearchPlanTechID, cTechSecretsOfTheTitans) != -1)
 	{
+		godLogTitanBlocked("the research is already running");
 		return;
 	}
 	if (godBankCovers(cTechSecretsOfTheTitans) == false)
 	{
+		godLogTitanBlocked("the bank is short");
 		return;
 	}
 	aiEcho("[GodBot] Researching Secrets of the Titans: food=" + xsFloatToInt(kbResourceGet(cResourceFood))
@@ -1990,6 +2022,7 @@ minInterval 30
 		+ " food=" + xsFloatToInt(kbResourceGet(cResourceFood))
 		+ " wood=" + xsFloatToInt(kbResourceGet(cResourceWood))
 		+ " gold=" + xsFloatToInt(kbResourceGet(cResourceGold))
+		+ " favor=" + xsFloatToInt(kbResourceGet(cResourceFavor))
 		+ " enemyAge=" + enemyAge
 		+ " enemyTitan=" + enemyTitan
 		+ " titans=" + kbUnitCount(cUnitTypeAbstractTitan, cMyID, cUnitStateAlive)

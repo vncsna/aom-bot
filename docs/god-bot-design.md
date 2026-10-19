@@ -269,7 +269,7 @@ between the base and that direction (`godBuildTowerAt`).
 `godTelemetryMonitor` emits one line every 30s:
 
 ```
-[GBOT] t=… age=… vills=… pop=cur/cap army=… food=… wood=… gold=… enemyAge=… enemyTitan=0|1 state=hold|push underAttack=0|1 enemies=… allies=… stance=normal|fortify|assist threat=… threatPlayers=… fallback=0|1 assist=<player-id>|-1
+[GBOT] t=… age=… vills=… pop=cur/cap army=… food=… wood=… gold=… favor=… enemyAge=… enemyTitan=0|1 state=hold|push underAttack=0|1 enemies=… allies=… stance=normal|fortify|assist threat=… threatPlayers=… fallback=0|1 assist=<player-id>|-1
 ```
 
 `state` is the push stance — `push` while the army is committed to a decisive push, `hold`
@@ -294,7 +294,8 @@ change was meant to do are summarised in [`god-bot-record.md`](god-bot-record.md
 | `cGodTitanFleeRadius` | How close an enemy Titan has to be to call an attack off |
 | `cGodTitanHuntArmyPop` | Military pop needed to take an enemy Titan on |
 | `cGodStalemateSeconds` | How long we must have sat in Mythic before going for a Titan |
-| `cGodTitanReservePercent` | Extra share of the Titan tech's cost the bank must hold before it is bought |
+| `cGodTitanReservePercent` | Extra share of the Titan tech's cost the bank must hold before it is bought (favour is exempt) |
+| `cGodTitanBlockedLogSeconds` | How often to say why the Titan is not being bought once stalemated |
 | `cGodPushArmyPop` | Military pop required before we commit to a decisive push |
 | `cGodPushInterval` | Seconds between attacks while pushing |
 | `cGodPushAdvantagePercent` | How much bigger our army must be than the enemy's to push |
@@ -339,9 +340,12 @@ change was meant to do are summarised in [`god-bot-record.md`](god-bot-record.md
 - **The tuning numbers are starting points.** Retreat, raid and push thresholds are the
   first things to adjust after a game.
 - **The Titan depends on the tech and on favour.** `godResearchTitanTech` can only buy
-  Secrets of the Titans when the game offers it and the favour is banked. The log line names
-  the bank as it fires, so a run that never reaches a Titan will show which of the two held
-  it back.
+  Secrets of the Titans when the game offers it and the favour is banked. Favour is exempt
+  from `cGodTitanReservePercent` for that reason. When a stalemate is latched and the tech is
+  not bought, the guard that held it is named in the log once a minute (`Titan held: …`) with
+  the bank beside it, so a run that never reaches a Titan says which guard held it and what
+  the bank looked like at the time. Nothing holds a favour floor for the tech, though: the
+  army's myth units keep spending it, so a run can still stall here for a long time.
 - **Choke detection is a heuristic.** The engine has no "choke" concept, so `godFindChoke`
   infers one from the area graph: the narrowest area on the path to the enemy. On an open map
   it falls back to a point on the straight line, which is not really a choke. Judged from its
