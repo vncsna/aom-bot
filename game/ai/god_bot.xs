@@ -101,6 +101,23 @@ const int cGodFortifyQuietSeconds = 90;
 // which is thin when two or three players can hit different bases at once.
 const int cGodFortifyTowersPerBase = 6;
 
+// Pull the army back to our strongest base once the enemy on a base outguns it by
+// this share ...
+const int cGodFallbackRatioPercent = 150;
+// ... and release the fallback once the enemy has dropped back to this share, or
+// after this long. Two thresholds, so the army does not shuttle back and forth.
+const int cGodFallbackReleasePercent = 100;
+const int cGodFallbackHoldSeconds = 60;
+// Weights for how defensible a base is. Towers and a Fortress matter most; houses
+// are the least of it but still block and shelter.
+const float cGodScoreTower = 3.0;
+const float cGodScoreTownCenter = 5.0;
+const float cGodScoreFortress = 6.0;
+const float cGodScoreHouse = 0.5;
+// The engine's primary land defend plan is priority 10, so anything above that pulls
+// the army across to the fallback plan.
+const int cGodFallbackPriority = 60;
+
 //==============================================================================
 // State
 //==============================================================================
@@ -122,6 +139,9 @@ float gGodThreatPower = 0.0;
 int gGodThreatPlayers = 0;
 float gGodHomePower = 0.0;
 int gGodLastThreatTime = -1;
+int gGodFallbackPlanID = -1;
+int gGodFallbackSince = -1;
+int gGodFallbackFromBaseID = -1;
 
 //==============================================================================
 // Helpers
@@ -1004,6 +1024,42 @@ void godApplyStance(ref StrategyData data)
 	data.mTowerAmountPerTCBase = cCalculateNumberTowersAutomatically;
 }
 
+// How defensible a base is: its towers, its Town Center, any Fortress, and the
+// houses packed around it. Fighting under these is worth giving up ground for, so
+// the fallback picks the base with the most of them.
+float godBaseDefenceScore(int baseID = -1)
+{
+	float score = 0.0;
+	score = score + getCountOfOwnAliveBuildingInBase(cUnitTypeAbstractTower, baseID) * cGodScoreTower;
+	score = score + getCountOfOwnAliveBuildingInBase(cUnitTypeAbstractSocketedTownCenter, baseID) * cGodScoreTownCenter;
+	score = score + getCountOfOwnAliveBuildingInBase(cUnitTypeAbstractFortress, baseID) * cGodScoreFortress;
+	score = score + getCountOfOwnAliveBuildingInBase(cUnitTypeHouse, baseID) * cGodScoreHouse;
+	return score;
+}
+
+// Our Town Center base with the strongest defences.
+int godStrongestBase()
+{
+	int bestBase = -1;
+	float bestScore = -1.0;
+	int numBases = kbBaseGetNumber(cMyID);
+	for (int i = 0; i < numBases; i++)
+	{
+		int baseID = kbBaseGetIDByIndex(cMyID, i);
+		if (kbBaseIsFlagSet(cMyID, baseID, cBaseFlagTownCenter) == false)
+		{
+			continue;
+		}
+		float score = godBaseDefenceScore(baseID);
+		if (score > bestScore)
+		{
+			bestScore = score;
+			bestBase = baseID;
+		}
+	}
+	return bestBase;
+}
+
 //==============================================================================
 // Strategy
 //==============================================================================
@@ -1076,9 +1132,11 @@ Strategy godBotStrategy()
 		// cStrategyFlagCanAttack is the engine's gate on its attackManager, so
 		// holding it here is what makes the cadence ours rather than the engine's.
 		// A team game only attacks from the normal stance; fortifying holds the army
-		// home with the towers instead.
+		// home with the towers instead. A fallback in progress holds it too, so the
+		// engine cannot walk the army back out while it is regrouping.
 		data.setFlag(cStrategyFlagCanAttack,
-			gGodStance == cGodStanceNormal && godTitanAllowsAttack() && godAttackGateOpen());
+			gGodStance == cGodStanceNormal && aiPlanGetIsIDValid(gGodFallbackPlanID) == false
+			&& godTitanAllowsAttack() && godAttackGateOpen());
 		return true;
 	};
 
@@ -1266,6 +1324,83 @@ minInterval 10
 	}
 }
 
+// While the army at a base is losing, take it back to the base with the most
+// defences instead of letting it die in the open. Fighting under towers and houses
+// is worth giving up ground for. Runs in every stance: a 1v1 army losing a fight in
+// the open should fall back too, not only a team game.
+rule godFallbackMonitor
+inactive
+minInterval 5
+{
+	if (aiPlanGetIsIDValid(gGodFallbackPlanID) == true)
+	{
+		bool release = false;
+		if (xsGetTime() - gGodFallbackSince >= cGodFallbackHoldSeconds)
+		{
+			release = true;
+		}
+		if (kbBaseGetIsIDValid(cMyID, gGodFallbackFromBaseID) == false)
+		{
+			release = true;
+		}
+		else
+		{
+			vector holdLoc = kbBaseGetLocation(cMyID, gGodFallbackFromBaseID);
+			float holdRadius = godBaseThreatRadius(gGodFallbackFromBaseID);
+			float enemy = godPowerNear(cPlayerRelationEnemyNotGaia, holdLoc, holdRadius);
+			float ours = godPowerNear(cMyID, holdLoc, holdRadius);
+			if ((enemy * 100.0) <= (ours * cGodFallbackReleasePercent))
+			{
+				release = true;
+			}
+		}
+		if (release == true)
+		{
+			aiEcho("[GodBot] Fallback over - the army returns to the engine's defence.");
+			aiPlanDestroy(gGodFallbackPlanID);
+			gGodFallbackPlanID = -1;
+			gGodFallbackFromBaseID = -1;
+			gGodFallbackSince = -1;
+		}
+		return;
+	}
+	int base = gGodThreatBaseID;
+	if (base == -1)
+	{
+		return;
+	}
+	vector loc = kbBaseGetLocation(cMyID, base);
+	float radius = godBaseThreatRadius(base);
+	float enemy = godPowerNear(cPlayerRelationEnemyNotGaia, loc, radius);
+	float ours = godPowerNear(cMyID, loc, radius);
+	if (enemy < cGodThreatMinPower || (enemy * 100.0) <= (ours * cGodFallbackRatioPercent))
+	{
+		return;
+	}
+	int target = godStrongestBase();
+	if (target == -1 || target == base)
+	{
+		// Already fighting under our best defences, so there is nowhere better to go.
+		return;
+	}
+	// Recall any attack that is still walking out, then park the army on the strong
+	// base. The plan outranks the engine's primary defend plan so the units move.
+	retreatArmies(kbBaseGetLocation(cMyID, target));
+	gGodFallbackPlanID = createDefendPlanForPoint("GodBot Fallback", kbBaseGetLocation(cMyID, target), cGodFallbackPriority);
+	if (gGodFallbackPlanID == -1)
+	{
+		return;
+	}
+	aiPlanAddUnitType(gGodFallbackPlanID, cUnitTypeLogicalTypeLandMilitary, 0, 0, 200);
+	aiPlanSetFlag(gGodFallbackPlanID, cPlanFlagCantBeStolenFrom, true);
+	aiPlanSetVariableFloat(gGodFallbackPlanID, cDefendPlanEngageRange, 0, godBaseThreatRadius(target));
+	gGodFallbackSince = xsGetTime();
+	gGodFallbackFromBaseID = base;
+	aiEcho("[GodBot] Falling back from " + kbBaseGetNameByID(cMyID, base) + " to "
+		+ kbBaseGetNameByID(cMyID, target) + ": enemy " + xsFloatToInt(enemy)
+		+ " vs our " + xsFloatToInt(ours) + ".");
+}
+
 // When we can't commit to a full attack, send a small group to hit the enemy
 // economy instead (drop sites first, then villagers).
 rule godRaidMonitor
@@ -1273,8 +1408,9 @@ inactive
 minInterval 90
 {
 	// Fortifying means the army stays home; the raid parties were dying to the
-	// enemy's shared army in a team game anyway.
-	if (gGodStance != cGodStanceNormal)
+	// enemy's shared army in a team game anyway. A fallback in progress holds the
+	// army at the strong base, so nothing splits off to raid either.
+	if (gGodStance != cGodStanceNormal || aiPlanGetIsIDValid(gGodFallbackPlanID) == true)
 	{
 		return;
 	}
@@ -1325,8 +1461,9 @@ inactive
 minInterval 60
 {
 	// Fortifying means the army stays home; the raid parties were dying to the
-	// enemy's shared army in a team game anyway.
-	if (gGodStance != cGodStanceNormal)
+	// enemy's shared army in a team game anyway. A fallback in progress holds the
+	// army at the strong base, so nothing splits off to raid either.
+	if (gGodStance != cGodStanceNormal || aiPlanGetIsIDValid(gGodFallbackPlanID) == true)
 	{
 		return;
 	}
@@ -1387,6 +1524,11 @@ minInterval 30
 	{
 		underAttack = 1;
 	}
+	int fallback = 0;
+	if (aiPlanGetIsIDValid(gGodFallbackPlanID) == true)
+	{
+		fallback = 1;
+	}
 	aiEcho("[GBOT] t=" + xsGetTime()
 		+ " age=" + kbPlayerGetAge(cMyID)
 		+ " vills=" + kbUnitCount(cUnitTypeAbstractVillager, cMyID, cUnitStateAlive)
@@ -1405,7 +1547,8 @@ minInterval 30
 		+ " allies=" + gGodAllyCount
 		+ " stance=" + godStanceName(gGodStance)
 		+ " threat=" + xsFloatToInt(gGodThreatPower)
-		+ " threatPlayers=" + gGodThreatPlayers);
+		+ " threatPlayers=" + gGodThreatPlayers
+		+ " fallback=" + fallback);
 }
 
 // Player counts change as players are eliminated, so refresh them on a timer rather
@@ -1447,6 +1590,7 @@ void postInit()
 	xsEnableRule("godVillageMonitor");
 	xsEnableRule("godTowerUpgradeMonitor");
 	xsEnableRule("godRetreatMonitor");
+	xsEnableRule("godFallbackMonitor");
 	xsEnableRule("godRaidMonitor");
 	xsEnableRule("godCavRaidMonitor");
 	xsEnableRule("godTelemetryMonitor");

@@ -321,7 +321,7 @@ Use this to resolve numeric constant IDs (e.g. what `cUnitTypeHoplite` resolves 
 `godTelemetryMonitor` in `god_bot.xs` logs one metrics line every 30 seconds:
 
 ```
-[GBOT] t=… age=… vills=… pop=cur/cap army=… food=… wood=… gold=… enemyAge=… enemyTitan=0|1 state=hold|push underAttack=0|1 enemies=… allies=… stance=normal|fortify|assist threat=… threatPlayers=…
+[GBOT] t=… age=… vills=… pop=cur/cap army=… food=… wood=… gold=… enemyAge=… enemyTitan=0|1 state=hold|push underAttack=0|1 enemies=… allies=… stance=normal|fortify|assist threat=… threatPlayers=… fallback=0|1
 ```
 
 Where it lands (under the game's user data, `…/Games/Age of Mythology Retold/`):
