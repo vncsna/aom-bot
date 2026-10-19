@@ -911,6 +911,12 @@ minInterval 10
 		{
 			continue;
 		}
+		// The engine tags its Titan plans. A Titan is one unit, so the outnumbered
+		// check below would recall it on every pass and it would never land.
+		if (aiPlanGetUserVariableIndex(planID, "Titan Plan") != -1)
+		{
+			continue;
+		}
 		int state = aiPlanGetState(planID);
 		if (state != cPlanStateGoto && state != cPlanStateAttack)
 		{

@@ -143,7 +143,9 @@ attack back when either a large share of it dies within the window, or the enemy
 clearly outnumbers it. Pulling back the main army also pushes the next attack out by one full
 interval of the rhythm the bot is on — the fast one while pushing, the slow one otherwise —
 set explicitly, so the wait is deliberate rather than whatever the last cadence write left
-behind. It regroups rather than re-committing, and a failed raid is simply called off.
+behind. It regroups rather than re-committing, and a failed raid is simply called off. It
+leaves the engine's own Titan plans alone: a Titan is one unit, so the outnumbered check
+would otherwise recall it on every pass and it would never land.
 
 **Never feed a Titan.** A Titan is one unit, so the outnumbered check never sees it, and it
 kills an army faster than the loss window notices. `godTitanNear` calls off any attack
