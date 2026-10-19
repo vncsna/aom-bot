@@ -89,6 +89,18 @@ const float cGodThreatMinPower = 5.0;
 // Troops gathered just outside a base's own radius still count as being on it.
 const float cGodThreatExtraRadius = 20.0;
 
+// Fortify once this many enemy players are pressing our bases at once ...
+const int cGodFortifyEnemyPlayers = 2;
+// ... or once the enemy on our bases outguns the army at home by this share. The
+// power test needs a real force on the base, so a trickle does not tip it.
+const int cGodFortifyThreatPercent = 100;
+// Stay fortified until the bases have been quiet this long. Without it the stance
+// flickers on and off as raiders step in and out of the base radius.
+const int cGodFortifyQuietSeconds = 90;
+// Towers per Town Center base while fortified. The engine's own number is about 2-3,
+// which is thin when two or three players can hit different bases at once.
+const int cGodFortifyTowersPerBase = 6;
+
 //==============================================================================
 // State
 //==============================================================================
@@ -109,6 +121,7 @@ int gGodThreatBaseID = -1;
 float gGodThreatPower = 0.0;
 int gGodThreatPlayers = 0;
 float gGodHomePower = 0.0;
+int gGodLastThreatTime = -1;
 
 //==============================================================================
 // Helpers
@@ -749,6 +762,12 @@ bool godAttackGateOpen()
 // purpose: we only stop being patient once the game is effectively won.
 bool godShouldPush()
 {
+	// Fortifying is a decision to hold, not to push: committing the army while two
+	// or three players are on our bases is what loses it in the open.
+	if (gGodStance != cGodStanceNormal)
+	{
+		return false;
+	}
 	// A brief poke at the base must not call off a push we already committed to;
 	// a real collapse shows up as the army falling below the bar, further down.
 	if (godUnderAttack() == true && gGodPushing == false)
@@ -918,7 +937,9 @@ void godManageWonderAndTitanGate(ref StrategyData data)
 		gGodTitanReached = true;
 		aiEcho("[GodBot] First Titan is out - the Wonder is allowed now.");
 	}
-	bool attacked = godUnderAttack();
+	// Fortifying counts as being under pressure: a Wonder or a Titan Gate is a long
+	// investment that would be lost while several players are on our bases.
+	bool attacked = godUnderAttack() == true || gGodStance == cGodStanceFortify;
 	data.setFlag(cStrategyFlagBuildTitan, gGodStalemate == true && attacked == false);
 	data.setFlag(cStrategyFlagBuildWonder, gGodTitanReached == true && attacked == false);
 	if (attacked == true)
@@ -941,6 +962,46 @@ bool godTitanAllowsAttack()
 	}
 	return kbUnitCount(cUnitTypeAbstractTitan, cMyID, cUnitStateAlive) >= 1
 		|| aiGetCurrentMilitaryPop() >= cGodTitanHuntArmyPop;
+}
+
+// Choose the stance for this second. A 1v1 never leaves "normal". A team game
+// fortifies once enough enemies are on our bases, stays fortified through a quiet
+// spell so the stance cannot flicker, and otherwise helps an ally in trouble.
+int godPickStance()
+{
+	if (gGodTeamGame == false)
+	{
+		return cGodStanceNormal;
+	}
+	bool pressed = gGodThreatPlayers >= cGodFortifyEnemyPlayers;
+	if (gGodThreatPower >= cGodThreatMinPower
+		&& (gGodThreatPower * 100.0) > (gGodHomePower * cGodFortifyThreatPercent))
+	{
+		pressed = true;
+	}
+	if (pressed == true)
+	{
+		gGodLastThreatTime = xsGetTime();
+		return cGodStanceFortify;
+	}
+	if (gGodStance == cGodStanceFortify && gGodLastThreatTime != -1
+		&& (xsGetTime() - gGodLastThreatTime) < cGodFortifyQuietSeconds)
+	{
+		return cGodStanceFortify;
+	}
+	return cGodStanceNormal;
+}
+
+// Publish the stance to the engine. Fortifying raises the number of towers the
+// engine's towerManager keeps per base; normal hands the number back to the engine.
+void godApplyStance(ref StrategyData data)
+{
+	if (gGodStance == cGodStanceFortify)
+	{
+		data.mTowerAmountPerTCBase = cGodFortifyTowersPerBase;
+		return;
+	}
+	data.mTowerAmountPerTCBase = cCalculateNumberTowersAutomatically;
 }
 
 //==============================================================================
@@ -978,6 +1039,23 @@ Strategy godBotStrategy()
 			// the naval shutdown has to be re-applied at each age, not just at init.
 			godApplyNavalPolicy(data);
 		}
+		int stance = godPickStance();
+		if (stance != gGodStance)
+		{
+			string from = godStanceName(gGodStance);
+			gGodStance = stance;
+			aiEcho("[GodBot] Stance: " + from + " -> " + godStanceName(stance)
+				+ " (threatPlayers=" + gGodThreatPlayers + ", threat=" + xsFloatToInt(gGodThreatPower)
+				+ ", home=" + xsFloatToInt(gGodHomePower) + ").");
+			godApplyStance(data);
+			godApplyAttackCadence();
+			if (stance == cGodStanceFortify)
+			{
+				// towerManager only re-checks every couple of minutes; nudge it so the
+				// extra towers start as soon as we fortify rather than ages later.
+				xsRuleIgnoreIntervalOnce("towerManager");
+			}
+		}
 		bool pushing = godShouldPush();
 		if (pushing != gGodPushing)
 		{
@@ -997,7 +1075,10 @@ Strategy godBotStrategy()
 		godManageWonderAndTitanGate(data);
 		// cStrategyFlagCanAttack is the engine's gate on its attackManager, so
 		// holding it here is what makes the cadence ours rather than the engine's.
-		data.setFlag(cStrategyFlagCanAttack, godTitanAllowsAttack() && godAttackGateOpen());
+		// A team game only attacks from the normal stance; fortifying holds the army
+		// home with the towers instead.
+		data.setFlag(cStrategyFlagCanAttack,
+			gGodStance == cGodStanceNormal && godTitanAllowsAttack() && godAttackGateOpen());
 		return true;
 	};
 
@@ -1191,6 +1272,12 @@ rule godRaidMonitor
 inactive
 minInterval 90
 {
+	// Fortifying means the army stays home; the raid parties were dying to the
+	// enemy's shared army in a team game anyway.
+	if (gGodStance != cGodStanceNormal)
+	{
+		return;
+	}
 	// The strategy flag is the engine's attackManager gate, held closed between our
 	// own attacks; a raid reads our willingness to fight instead.
 	if (godTitanAllowsAttack() == false)
@@ -1237,6 +1324,12 @@ rule godCavRaidMonitor
 inactive
 minInterval 60
 {
+	// Fortifying means the army stays home; the raid parties were dying to the
+	// enemy's shared army in a team game anyway.
+	if (gGodStance != cGodStanceNormal)
+	{
+		return;
+	}
 	// The strategy flag is the engine's attackManager gate, held closed between our
 	// own attacks; a raid reads our willingness to fight instead.
 	if (godTitanAllowsAttack() == false)
