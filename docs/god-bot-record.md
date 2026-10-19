@@ -58,6 +58,7 @@ Keep it small:
 
 | Date | Commit | Change | Expected effect | Observed |
 |---|---|---|---|---|
+| 2026-10-19 | `112e452` | Delete the unproven subsystems: the cavalry and foot raids, the ally assist, the per-village Temple/military build, the front tower, and the player-count monitor (folded into telemetry). The naval cleanup stays. | The budget drops from 10 rules to 5 and 29 consts to 11; the land army has no custom owner; nothing that never fired in a recorded run competes with the engine | — |
 | 2026-10-19 | `015519c` | Collapse the army to one owner: delete the choke, fallback and per-base threat count, replace the stances with one `gGodDefendHome` from `gDefensivelyOverrun`, merge the raids, delegate the Titan/Wonder to the engine, slow the cadence to 1.2x | The army cannot freeze on an unreachable choke or shuttle between a forward base and the capital; it attacks on a slow but finite rhythm; the engine's own Titan path is used | — |
 | 2026-10-19 | `96368b4` | Count the live enemies and allies and log the game shape (`enemies=`, `allies=`, `stance=`) | A team game is distinguishable from a 1v1 in the telemetry, and the 1v1 baseline is unchanged | — |
 | 2026-10-19 | `0ba0408` | Read enemy power on every Town Center base, split by player (`threat=`, `threatPlayers=`) | "Three raids from three players" reads as three players on our bases, not one global flag | — |
