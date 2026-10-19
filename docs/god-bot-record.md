@@ -28,12 +28,13 @@ That is three matches for a general read of the bot. Add another only when a cha
 a branch those three cannot: a naval map for the naval-cleanup branch, a specific opponent,
 or another major god for the minor-god picks.
 
-Team games are their own coverage, because the stances only leave `normal` there:
+Team games are their own coverage, because the team behaviour only runs there:
 
-- **A 2v2:** exercises the assist stance — an ally base under pressure, and our own quiet.
-- **A 3v3 on jotunheim** (the map of the last team-game loss): exercises fortify, the
-  fallback and the choke. Read `stance=`, `threatPlayers=`, `fallback=` and `assist=` from the
-  telemetry to see which fired.
+- **A 2v2:** exercises the assist plan — an ally base under pressure while our own bases
+  are quiet.
+- **A 3v3 on jotunheim** (the map of the last team-game loss): exercises defend-home, the
+  front tower and the assist. Read `defend=`, `underAttack=` and `assist=` from the telemetry
+  to see which fired.
 
 Keep it small:
 
@@ -60,6 +61,7 @@ Keep it small:
 
 | Date | Commit | Change | Expected effect | Observed |
 |---|---|---|---|---|
+| 2026-10-19 | `015519c` | Collapse the army to one owner: delete the choke, fallback and per-base threat count, replace the stances with one `gGodDefendHome` from `gDefensivelyOverrun`, merge the raids, delegate the Titan/Wonder to the engine, slow the cadence to 1.2x | The army cannot freeze on an unreachable choke or shuttle between a forward base and the capital; it attacks on a slow but finite rhythm; the engine's own Titan path is used | — |
 | 2026-10-19 | uncommitted | A stalemate unlocks the Wonder on its own, instead of waiting for the first Titan | A Titan that never arrives can no longer take the match's only other win condition with it; a stalled stalemate is closed with a Wonder | — |
 | 2026-10-19 | uncommitted | Favour is exempt from `cGodTitanReservePercent`, and a stalemate that cannot buy the tech says which guard held it (`Titan held: …`, once a minute) with `favor=` in the telemetry line | The Titan tech stops waiting for a favour surplus that never comes, and a run without a Titan names the guard instead of leaving it to inference | — |
 | 2026-10-19 | `96368b4` | Count the live enemies and allies and log the game shape (`enemies=`, `allies=`, `stance=`) | A team game is distinguishable from a 1v1 in the telemetry, and the 1v1 baseline is unchanged | — |
