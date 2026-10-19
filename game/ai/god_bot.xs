@@ -135,6 +135,12 @@ const int cGodAssistQuietSeconds = 30;
 // below the fallback (60), so a fallback at home always wins the army back.
 const int cGodAssistPriority = 40;
 
+// How far out from the base centre the front tower goes, toward the enemy. The
+// engine's towerManager places towers on a random ring around the Town Center, so
+// the threatened approach is often left open.
+const float cGodFrontTowerDistance = 20.0;
+const int cGodFrontTowerPriority = 55;
+
 //==============================================================================
 // State
 //==============================================================================
@@ -163,6 +169,7 @@ int gGodAssistPlanID = -1;
 int gGodAssistAllyID = -1;
 int gGodAssistBaseID = -1;
 int gGodAssistQuietSince = -1;
+int gGodFrontTowerPlanID = -1;
 
 //==============================================================================
 // Helpers
@@ -1155,6 +1162,32 @@ int godStrongestBase()
 	return bestBase;
 }
 
+// Build one tower at a chosen spot. Used to face the threatened side of a base,
+// which the engine's own towerManager does not do: it places towers on a random
+// ring around the Town Center.
+int godBuildTowerAt(vector location = cInvalidVector, int baseID = -1)
+{
+	if (calculateNumPossibleTowersToBuild() < 1)
+	{
+		return -1; // Already at our tower build limit.
+	}
+	if (kbGetIsLocationOnMap(location) == false)
+	{
+		return -1;
+	}
+	int planID = createLocationBuildPlan(cUnitTypeSentryTower, 1, cGodFrontTowerPriority,
+		gMilitaryBuildingsCategoryID, location, 7.5, 2.0);
+	if (planID == -1)
+	{
+		return -1;
+	}
+	if (baseID != -1)
+	{
+		aiPlanSetBaseID(planID, baseID);
+	}
+	return planID;
+}
+
 //==============================================================================
 // Strategy
 //==============================================================================
@@ -1577,6 +1610,59 @@ minInterval 10
 		+ ", sending up to " + share + " units.");
 }
 
+// While fortifying, put a tower on the side the enemy is coming from, so the
+// approach the engine would have left open is covered. One at a time; the engine's
+// own towerManager still keeps the tower count per base.
+rule godFrontTowerMonitor
+inactive
+minInterval 30
+{
+	if (aiPlanGetIsIDValid(gGodFrontTowerPlanID) == false)
+	{
+		gGodFrontTowerPlanID = -1;
+	}
+	if (gGodStance != cGodStanceFortify || gGodThreatBaseID == -1)
+	{
+		return;
+	}
+	if (gGodFrontTowerPlanID != -1)
+	{
+		return; // One front tower at a time.
+	}
+	vector baseLoc = kbBaseGetLocation(cMyID, gGodThreatBaseID);
+	int queryID = useSimpleUnitQuery(cUnitTypeLogicalTypeLandMilitary, cPlayerRelationEnemyNotGaia,
+		cUnitStateAlive, baseLoc, godBaseThreatRadius(gGodThreatBaseID));
+	kbUnitQueryExecute(queryID);
+	int[] units = kbUnitQueryGetResults(queryID);
+	if (units.size() == 0)
+	{
+		return;
+	}
+	// The enemy's centroid gives the direction they are massing from.
+	vector centroid = vector(0.0, 0.0, 0.0);
+	int counted = 0;
+	for (int i = 0; i < units.size(); i++)
+	{
+		if (kbUnitGetIsIDValid(units[i]) == false)
+		{
+			continue;
+		}
+		centroid = centroid + kbUnitGetPosition(units[i]);
+		counted++;
+	}
+	if (counted == 0)
+	{
+		return;
+	}
+	centroid = centroid / xsIntToFloat(counted);
+	vector spot = baseLoc + xsVectorNormalize(centroid - baseLoc) * cGodFrontTowerDistance;
+	gGodFrontTowerPlanID = godBuildTowerAt(spot, gGodThreatBaseID);
+	if (gGodFrontTowerPlanID != -1)
+	{
+		aiEcho("[GodBot] Front tower toward the enemy at " + spot + ".");
+	}
+}
+
 // When we can't commit to a full attack, send a small group to hit the enemy
 // economy instead (drop sites first, then villagers).
 rule godRaidMonitor
@@ -1774,6 +1860,7 @@ void postInit()
 	xsEnableRule("godRetreatMonitor");
 	xsEnableRule("godFallbackMonitor");
 	xsEnableRule("godAssistMonitor");
+	xsEnableRule("godFrontTowerMonitor");
 	xsEnableRule("godRaidMonitor");
 	xsEnableRule("godCavRaidMonitor");
 	xsEnableRule("godTelemetryMonitor");
