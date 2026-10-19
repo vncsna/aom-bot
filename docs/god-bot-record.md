@@ -11,9 +11,9 @@ behaviour itself is the commit in the first column — this file is a summary, n
 
 The goal is "always win", so a **loss is the signal**, not a win rate — you are hunting
 counterexamples. One match answers several questions at once: the bot's own `[GodBot]`
-events (retreats, pushes, raids, tower upgrades, Titan handling) land in the archived run,
-so read behaviour from the log rather than the result. Prefer a few matches that exercise
-different branches over many repeats of the same one.
+events (retreats, pushes, tower upgrades, Titan handling) land in the archived run, so read
+behaviour from the log rather than the result. Prefer a few matches that exercise different
+branches over many repeats of the same one.
 
 Hold a baseline fixed — one map, one difficulty, one opponent — so rows are comparable:
 
@@ -22,19 +22,16 @@ Hold a baseline fixed — one map, one difficulty, one opponent — so rows are 
 - **An aggressive opponent** (e.g. Attacker or Overwhelmer). Exercises defence: the Wonder
   and Titan Gate hold under `gDefensivelyOverrun`, and the retreat logic.
 - **A passive opponent** (e.g. Defender or Passive). Exercises offence: whether the bot
-  closes a game the enemy will not leave, and whether the push/raid cadence presses.
+  closes a game the enemy will not leave, and whether the push cadence presses.
 
 That is three matches for a general read of the bot. Add another only when a change reaches
 a branch those three cannot: a naval map for the naval-cleanup branch, a specific opponent,
 or another major god for the minor-god picks.
 
-Team games are their own coverage, because the team behaviour only runs there:
+Team games are their own coverage:
 
-- **A 2v2:** exercises the assist plan — an ally base under pressure while our own bases
-  are quiet.
-- **A 3v3 on jotunheim** (the map of the last team-game loss): exercises defend-home, the
-  front tower and the assist. Read `defend=`, `underAttack=` and `assist=` from the telemetry
-  to see which fired.
+- **A 3v3 on jotunheim** (the map of the last team-game loss): exercises defend-home on a
+  large map. Read `defend=` and `underAttack=` from the telemetry to see which fired.
 
 Keep it small:
 
@@ -49,7 +46,7 @@ Keep it small:
 
 | Date | Commit | Map | Opponent | Result | Length | Notes |
 |---|---|---|---|---|---|---|
-| 2026-10-19 | `a8d272f` (tree) | jotunheim | 12-player FFA, chairon AIs | ? | 79:00 | The game that would not end. Stalemate latched at 35:34 and the bot asked for a Titan for the remaining 44 minutes; `titans=0` and `wonder=0` for all 155 samples. Titans were *not* disabled: three stock AIs in the same match researched Secrets of the Titans and had Gates up (players 2/3/5, 32:53–33:53). Our bot never got past the research: no `Researching Secrets of the Titans` line, and — the decisive one — no `Under attack - postponing the Titan Gate` line either, so the `titanGateConstructionMonitor` rule was never enabled, i.e. no Gate charge ever existed. From 38:00 to 48:00 it sat at 1.8–9.6k food / 3.9–18k wood / 1.5–2.9k gold in `normal` stance with `underAttack=0`, which clears every gate in `godBankCovers` except the 75 favour (50 × the 50% reserve) — favour is the one resource the telemetry line does not log. The Wonder could not cover for it: it is gated behind a live Titan, so 44 minutes of pop-capped grind, 33k wood banked and neither win-condition building placed |
+| 2026-10-19 | `a8d272f` (tree) | jotunheim | 12-player FFA, chairon AIs | loss | 79:00 | The game that would not end. Stalemate latched at 35:34 and the bot asked for a Titan for the remaining 44 minutes; `titans=0` and `wonder=0` for all 155 samples. Titans were *not* disabled: three stock AIs in the same match researched Secrets of the Titans and had Gates up (players 2/3/5, 32:53–33:53). Our bot never got past the research: no `Researching Secrets of the Titans` line, and — the decisive one — no `Under attack - postponing the Titan Gate` line either, so the `titanGateConstructionMonitor` rule was never enabled, i.e. no Gate charge ever existed. From 38:00 to 48:00 it sat at 1.8–9.6k food / 3.9–18k wood / 1.5–2.9k gold in `normal` stance with `underAttack=0`, which clears every gate in `godBankCovers` except the 75 favour (50 × the 50% reserve) — favour is the one resource the telemetry line does not log. The Wonder could not cover for it: it is gated behind a live Titan, so 44 minutes of pop-capped grind, 33k wood banked and neither win-condition building placed |
 | 2026-10-19 | `0c60d80` | jotunheim | larger team game (chairon AIs), Titan | loss | 52:18 | Loki (Norse). Boom to 91 vills / 210 pop; army peaked at 144 (26:12). The bot's team never led the score (own team ~50.8k vs enemy teams ~91.5k and ~81.8k), and it was under attack from 15:00 on. The stalemate Titan fired at 34:26 — 360s after Mythic at 28:26 — but no Titan ever appeared (`titans=0` all game) while it sat on a 2–6k wood bank. The enemy's Titan arrived at 35:13 and every raid and attack aborted on it (37:06, 40:49, 41:19, 42:20). From ~48:00 its bases were overrun, it lost its last TC at 50:53, and it resigned at 52:18 with healthScore 94 |
 | 2026-10-19 | `f4ac062` | mirage | chairon / Balanced / Huitzilopochtli | win | ~34:30 | Ra. Push held almost unbroken from 17:30 (one hold at 27:32), but the bank grew past 30k from 23:00 on with army stuck near 140 at the 250 cap. Enemy reached Mythic at 18:00, no age deficit. The Titan only appeared at ~31:00, its Gate first logged at 27:29, and it was recalled 13 times in the 3.5 minutes it lived (8–23 enemies vs our 1, then the enemy Titan at 33:00), so it never landed |
 | 2026-10-18 | `315a62f`–`c496020` | mirage | chairon / Conqueror / Odin | win | 26:31 | Enemy resigned with 7 power left, under attack in its bases from 10:02 to the end. Push/slow flipped 5 times, not 15. The gate never reopened after the 19:41 retreat, so the last 7 minutes were passive while the bank grew past 9k |

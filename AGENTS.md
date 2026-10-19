@@ -33,7 +33,7 @@ achieve the behaviour, not to record how it was dictated.
 | `rule` blocks (monitors) | 10 |
 | `const` declarations | 30 |
 | File-scoped `gGod*` globals | 20 |
-| Custom plans that can own the land army | 1 (transient assist) |
+| Custom plans that can own the land army | 0 |
 | Army-posture states | 1 boolean |
 | Work in the strategy `mUpdateFunc` | O(1) |
 | Fields in the `[GBOT]` line | 20 |
@@ -353,7 +353,7 @@ Use this to resolve numeric constant IDs (e.g. what `cUnitTypeHoplite` resolves 
 `godTelemetryMonitor` in `god_bot.xs` logs one metrics line every 30 seconds:
 
 ```
-[GBOT] t=… age=… vills=… pop=cur/cap army=… food=… wood=… gold=… favor=… enemyAge=… enemyTitan=0|1 titans=… wonder=… state=hold|push underAttack=0|1 enemies=… allies=… defend=0|1 assist=<player-id>|-1
+[GBOT] t=… age=… vills=… pop=cur/cap army=… food=… wood=… gold=… favor=… enemyAge=… enemyTitan=0|1 titans=… wonder=… state=hold|push underAttack=0|1 enemies=… allies=… defend=0|1
 ```
 
 Where it lands (under the game's user data, `…/Games/Age of Mythology Retold/`):

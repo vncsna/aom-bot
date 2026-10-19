@@ -7,13 +7,12 @@
 //
 // Four responsibilities:
 //   1. Economy   - engine auto-eco, villager cap, minor-god picks.
-//   2. Defence   - the engine's defend plan, towers as needed, one ally assist.
+//   2. Defence   - the engine's defend plan, towers as needed.
 //   3. Offence   - the engine's attack manager on a deliberately slow cadence.
 //   4. Endgame   - the engine's Titan and Wonder monitors, unlocked on a stalemate.
 //
-// The land army has one owner: the engine's gPrimaryLandDefendPlan. The only
-// custom plan that may claim it is the transient ally assist. See the complexity
-// budget in AGENTS.md before adding another.
+// The land army has one owner: the engine's gPrimaryLandDefendPlan. See the
+// complexity budget in AGENTS.md before adding another.
 //==============================================================================
 include "core/main.xs";
 
@@ -47,38 +46,8 @@ const int cGodTitanHuntArmyPop = 60;
 // engine's Titan and Wonder monitors are unlocked.
 const int cGodStalemateSeconds = 360;
 
-// A raid is a small group, so a whole base garrison counts as "outnumbered". Judge
-// it only on the troops on its target, and refuse a site a small party cannot take.
-const float cGodRaidTargetRadius = 30.0;
-const float cGodRaidAbortRadius = 25.0;
-const int cGodRaidMaxGuard = 2;
-const int cGodCavRaidMinCavalry = 4;
-const float cGodCavRaidMineRadius = 30.0;
-const float cGodCavRaidRetreatRadius = 20.0;
-
-// Defence: the engine reports enemy power per base, so a lone scout does not count.
-// Towers are raised while the base is actually overrun, and one is nudged toward the
-// approach the enemy is using.
-const int cGodThreatMinPower = 5;
-const float cGodThreatExtraRadius = 20.0;
+// Defence: towers are raised while the base is actually overrun.
 const int cGodDefendTowersPerBase = 6;
-const float cGodFrontTowerDistance = 20.0;
-const int cGodFrontTowerPriority = 55;
-
-// Help an ally whose base is being overrun, but only while our own bases are quiet
-// and only a capped share of the army. Losing an ally leaves us facing the enemies
-// alone, so keeping one alive is worth the detour.
-const float cGodAssistMinEnemyPower = 10.0;
-const int cGodAssistRatioPercent = 150;
-const int cGodAssistMaxSharePercent = 50;
-const int cGodAssistMinUnits = 5;
-const float cGodAssistMaxDistance = 200.0;
-const int cGodAssistQuietSeconds = 30;
-const int cGodAssistPriority = 40;
-
-// A 12-player brawl is not a 2v2: the team behaviour only makes sense with an ally
-// and a normal team size.
-const int cGodTeamMaxEnemies = 4;
 
 //==============================================================================
 // State
@@ -88,22 +57,11 @@ bool gGodPushing = false;
 int gGodLastAge = -1;
 bool gGodStalemate = false;
 int gGodMythicSince = -1;
-bool gGodTitanReached = false;
 
 bool gGodDefendHome = false;
-int gGodFrontTowerPlanID = -1;
-
-int gGodRaidPlanID = -1;
-bool gGodRaidIsCavalry = false;
 
 int gGodEnemyCount = 0;
 int gGodAllyCount = 0;
-bool gGodTeamGame = false;
-
-int gGodAssistPlanID = -1;
-int gGodAssistAllyID = -1;
-int gGodAssistBaseID = -1;
-int gGodAssistQuietSince = -1;
 
 //==============================================================================
 // Helpers
@@ -150,41 +108,6 @@ void godCountPlayers()
 			gGodEnemyCount++;
 		}
 	}
-	gGodTeamGame = gGodAllyCount >= 1 && gGodEnemyCount <= cGodTeamMaxEnemies;
-}
-
-bool godBaseHasMilitaryBuilding(int baseID = -1)
-{
-	for (int i = 0; i < gMilitaryBuildings.size(); i++)
-	{
-		int puid = gMilitaryBuildings[i];
-		if (puid < 0)
-		{
-			continue;
-		}
-		if (getCountOfOwnAliveBuildingInBase(puid, baseID) >= 1)
-		{
-			return true;
-		}
-		if (getAmountBuildPlansInBase(puid, baseID) >= 1)
-		{
-			return true;
-		}
-	}
-	return false;
-}
-
-int godPickMilitaryBuilding()
-{
-	for (int i = 0; i < gMilitaryBuildings.size(); i++)
-	{
-		int puid = gMilitaryBuildings[i];
-		if (puid >= 0 && kbProtoUnitAvailable(puid) == true)
-		{
-			return puid;
-		}
-	}
-	return -1;
 }
 
 // The next tower upgrade we can research right now, in the engine's own order.
@@ -237,94 +160,6 @@ float godArmyPower(int playerID = -1)
 	return kbUnitsGetPower(kbUnitQueryGetResults(queryID));
 }
 
-// Combat power of one player's land military around a point.
-float godPowerNear(int player = cMyID, vector location = cInvalidVector, float radius = 60.0)
-{
-	int queryID = useSimpleUnitQuery(cUnitTypeLogicalTypeLandMilitary, player, cUnitStateAlive, location, radius);
-	kbUnitQueryExecute(queryID);
-	return kbUnitQueryGetPower(queryID);
-}
-
-// A base's own radius plus a margin, so troops massing just outside it still count.
-float godBaseThreatRadius(int baseID = -1)
-{
-	return kbBaseGetDistance(cMyID, baseID) + cGodThreatExtraRadius;
-}
-
-// Prefer the enemy drop site the enemy can least defend; fall back to any villager.
-int godFindRaidTarget(int target = -1)
-{
-	int[] dropSites = new int(4, -1);
-	dropSites[0] = cUnitTypeStorehouse;
-	dropSites[1] = cUnitTypeGranary;
-	dropSites[2] = cUnitTypeLumberCamp;
-	dropSites[3] = cUnitTypeOxCartBuilding;
-	int bestUnit = -1;
-	int bestGuard = 0;
-	for (int i = 0; i < dropSites.size(); i++)
-	{
-		int unitID = getUnit(dropSites[i], target, cUnitStateAlive);
-		if (unitID == -1)
-		{
-			continue;
-		}
-		int guard = godEnemyMilitaryNear(kbUnitGetPosition(unitID), cGodRaidTargetRadius);
-		if (bestUnit == -1 || guard < bestGuard)
-		{
-			bestUnit = unitID;
-			bestGuard = guard;
-		}
-	}
-	if (bestUnit == -1)
-	{
-		bestUnit = getUnit(cUnitTypeAbstractVillager, target, cUnitStateAlive);
-		if (bestUnit == -1)
-		{
-			return -1;
-		}
-		bestGuard = godEnemyMilitaryNear(kbUnitGetPosition(bestUnit), cGodRaidTargetRadius);
-	}
-	if (bestGuard > cGodRaidMaxGuard)
-	{
-		return -1;
-	}
-	return bestUnit;
-}
-
-// Enemy villagers working a point.
-int godEnemyVillagersNear(vector location = cInvalidVector, float radius = 60.0)
-{
-	return getUnitCountByLocation(cUnitTypeAbstractVillager, cPlayerRelationEnemyNotGaia,
-		cUnitStateAlive, location, radius);
-}
-
-// The enemy gold mine with the most miners on it, or -1. Mines belong to Gaia, not
-// to the enemy, so player 0 is the right owner to ask for.
-int godFindGoldMineTarget()
-{
-	int[] mineTypes = new int(3, -1);
-	mineTypes[0] = cUnitTypeMineGoldSmall;
-	mineTypes[1] = cUnitTypeMineGoldMedium;
-	mineTypes[2] = cUnitTypeMineGoldLarge;
-	int bestUnit = -1;
-	int bestMiners = 0;
-	for (int i = 0; i < mineTypes.size(); i++)
-	{
-		int unitID = getUnit(mineTypes[i], 0, cUnitStateAlive);
-		if (unitID == -1)
-		{
-			continue;
-		}
-		int miners = godEnemyVillagersNear(kbUnitGetPosition(unitID), cGodCavRaidMineRadius);
-		if (miners > bestMiners)
-		{
-			bestUnit = unitID;
-			bestMiners = miners;
-		}
-	}
-	return bestUnit;
-}
-
 // The enemy's Titan, if one is alive.
 int godEnemyTitanID()
 {
@@ -334,35 +169,6 @@ int godEnemyTitanID()
 		return -1;
 	}
 	return getUnit(cUnitTypeAbstractTitan, target, cUnitStateAlive);
-}
-
-bool godRaidInField()
-{
-	return aiPlanGetIsIDValid(gGodRaidPlanID);
-}
-
-// Set a raid up like the engine's own attacks: keep builders home, let god powers
-// support it, and stop other plans pulling its units away. This owns the raid slot,
-// so the caller only has to pick a target.
-void godLaunchRaid(string name = "", vector point = cInvalidVector, int unitType = -1,
-	int wantCount = 0, int maxCount = 0, int gatherWaitSeconds = 0, bool cavalry = false)
-{
-	vector gatherPoint = aiPlanGetVariableVector(gPrimaryLandDefendPlan, cDefendPlanGatherPoint, 0);
-	int planID = aiPlanCreate(name, cPlanAttack, -1, gMilitaryAttackingCategoryID);
-	aiPlanSetVariableInt(planID, cAttackPlanTargetMode, 0, cAttackPlanTargetModePoint);
-	aiPlanSetVariableVector(planID, cAttackPlanTargetPoint, 0, point);
-	aiPlanSetVariableVector(planID, cAttackPlanGatherPoint, 0, gatherPoint);
-	aiPlanSetVariableFloat(planID, cAttackPlanGatherDistance, 0, 15.0);
-	aiPlanSetVariableInt(planID, cAttackPlanGatherWaitTime, 0, gatherWaitSeconds * 1000);
-	aiPlanSetVariableInt(planID, cAttackPlanDoneMode, 0, cAttackPlanDoneModeNoTarget | cAttackPlanDoneModeNoUnits);
-	aiPlanAddUnitType(planID, unitType, 2, wantCount, maxCount);
-	preventSomeBuildersFromJoiningAttack(planID);
-	setDefaultAttackPlanTargetUnitTypes(planID);
-	addPlanToAllSuitableGodpowerPlans(planID);
-	aiPlanSetPriority(planID, 70);
-	aiPlanSetFlag(planID, cPlanFlagCantBeStolenFrom, true);
-	gGodRaidPlanID = planID;
-	gGodRaidIsCavalry = cavalry;
 }
 
 // A Titan counts as one enemy unit, so the outnumbered check never sees it coming.
@@ -403,25 +209,7 @@ bool godAttackIsLosing(int planID = -1, int ourCount = 0)
 		aiEcho("[GodBot] Retreating " + aiPlanGetName(planID) + ": enemy Titan in the field.");
 		return true;
 	}
-	// A cavalry raid is fast enough to leave, so it is judged by how close the enemy
-	// is rather than by how many of them there are.
-	if (planID == gGodRaidPlanID && gGodRaidIsCavalry == true)
-	{
-		int closingIn = godEnemyMilitaryNear(planLoc, cGodCavRaidRetreatRadius);
-		if (closingIn > 0)
-		{
-			aiEcho("[GodBot] Retreating " + aiPlanGetName(planID) + ": " + closingIn + " enemies closed in.");
-			return true;
-		}
-		return false;
-	}
-	// Judge a raid on the troops on its target, not on the base's whole garrison.
-	float checkRadius = 60.0;
-	if (planID == gGodRaidPlanID)
-	{
-		checkRadius = cGodRaidAbortRadius;
-	}
-	int enemyCount = godEnemyMilitaryNear(planLoc, checkRadius);
+	int enemyCount = godEnemyMilitaryNear(planLoc);
 	int enemyRatio = (enemyCount * 100) / ourCount;
 	if (enemyCount >= 3 && enemyRatio > cGodRetreatEnemyRatioPercent)
 	{
@@ -434,81 +222,9 @@ bool godAttackIsLosing(int planID = -1, int ourCount = 0)
 void godRetreatPlan(int planID = -1)
 {
 	aiPlanSetState(planID, cPlanStateDone);
-	// Don't immediately walk the main army back out; regroup for one interval. A
-	// failed raid of either kind shouldn't hold up the main attack.
-	if (planID != gGodRaidPlanID)
-	{
-		gAttackManager.mLastAttackTime = xsGetTime();
-		gAttackManager.mAttackInterval = godCadenceInterval();
-	}
-}
-
-// The ally base that most needs help, or -1, with the ally's player id written to
-// allyID. Prefers the ally closest to being wiped out (fewest Town Center bases
-// left), then the base where the enemy's edge is biggest. Only reads allies while
-// our own bases are quiet.
-int godAssistTarget(ref int allyID)
-{
-	allyID = -1;
-	if (gGodTeamGame == false || gDefensivelyOverrun == true)
-	{
-		return -1;
-	}
-	int bestAlly = -1;
-	int bestBase = -1;
-	int bestBases = 0;
-	float bestGap = 0.0;
-	for (int a = 1; a <= cNumberPlayers; a++)
-	{
-		if (a == cMyID || kbPlayerHasLost(a) == true || kbPlayerIsAlly(a) == false)
-		{
-			continue;
-		}
-		int allyBases = 0;
-		int candidate = -1;
-		float candidateGap = 0.0;
-		int numBases = kbBaseGetNumber(a);
-		for (int i = 0; i < numBases; i++)
-		{
-			int baseID = kbBaseGetIDByIndex(a, i);
-			if (kbBaseIsFlagSet(a, baseID, cBaseFlagTownCenter) == false)
-			{
-				continue;
-			}
-			allyBases++;
-			vector loc = kbBaseGetLocation(a, baseID);
-			if (xsVectorLength(loc - kbBaseGetLocation(cMyID, kbBaseGetMainID(cMyID))) > cGodAssistMaxDistance)
-			{
-				continue;
-			}
-			float radius = kbBaseGetDistance(a, baseID) + cGodThreatExtraRadius;
-			float enemy = godPowerNear(cPlayerRelationEnemyNotGaia, loc, radius);
-			if (enemy < cGodAssistMinEnemyPower)
-			{
-				continue;
-			}
-			float allyPower = godPowerNear(a, loc, radius);
-			float gap = enemy - allyPower;
-			if ((enemy * 100.0) > (allyPower * cGodAssistRatioPercent) && gap > candidateGap)
-			{
-				candidate = baseID;
-				candidateGap = gap;
-			}
-		}
-		if (candidate == -1)
-		{
-			continue;
-		}
-		if (bestBase == -1 || allyBases < bestBases || (allyBases == bestBases && candidateGap > bestGap))
-		{
-			bestAlly = a;
-			bestBase = candidate;
-			bestBases = allyBases;
-			bestGap = candidateGap;
-		}
-	}
-	allyID = bestAlly;
-	return bestBase;
+	// Don't immediately walk the main army back out; regroup for one interval.
+	gAttackManager.mLastAttackTime = xsGetTime();
+	gAttackManager.mAttackInterval = godCadenceInterval();
 }
 
 //==============================================================================
@@ -785,18 +501,13 @@ void godUpdateStalemate()
 // allowed. Defending home postpones both, because a long investment would be lost.
 void godManageWinConditions(ref StrategyData data)
 {
-	if (gGodTitanReached == false && kbUnitCount(cUnitTypeAbstractTitan, cMyID, cUnitStateAlive) >= 1)
-	{
-		gGodTitanReached = true;
-		aiEcho("[GodBot] First Titan is out - the Wonder is allowed now.");
-	}
 	bool ready = gGodStalemate == true && gGodDefendHome == false;
 	data.setFlag(cStrategyFlagBuildTitan, ready);
 	data.setFlag(cStrategyFlagBuildWonder, ready);
 }
 
 // Feeding an army to a Titan just loses the army. While one is on the field and we
-// cannot answer it, hold the army at home with the towers and stop raiding.
+// cannot answer it, hold the army at home with the towers.
 bool godTitanAllowsAttack()
 {
 	if (godEnemyTitanID() == -1)
@@ -817,30 +528,6 @@ void godApplyDefence(ref StrategyData data)
 		return;
 	}
 	data.mTowerAmountPerTCBase = cCalculateNumberTowersAutomatically;
-}
-
-// Build one tower at a chosen spot, toward the approach the enemy is using.
-int godBuildTowerAt(vector location = cInvalidVector, int baseID = -1)
-{
-	if (calculateNumPossibleTowersToBuild() < 1)
-	{
-		return -1; // Already at our tower build limit.
-	}
-	if (kbGetIsLocationOnMap(location) == false)
-	{
-		return -1;
-	}
-	int planID = createLocationBuildPlan(cUnitTypeSentryTower, 1, cGodFrontTowerPriority,
-		gMilitaryBuildingsCategoryID, location, 7.5, 2.0);
-	if (planID == -1)
-	{
-		return -1;
-	}
-	if (baseID != -1)
-	{
-		aiPlanSetBaseID(planID, baseID);
-	}
-	return planID;
 }
 
 //==============================================================================
@@ -878,7 +565,7 @@ Strategy godBotStrategy()
 			godApplyNavalPolicy(data);
 		}
 		// The engine's own serious-trouble signal is the whole defence decision. A
-		// per-base threat count is what pinned the army in fortify in a big game.
+		// per-base threat count would pin the army at home in a big game.
 		bool defend = gDefensivelyOverrun;
 		if (defend != gGodDefendHome)
 		{
@@ -962,40 +649,6 @@ minInterval 30
 	}
 }
 
-// Every village (TC base) gets one Temple and one military building.
-rule godVillageMonitor
-inactive
-minInterval 20
-{
-	if (checkStrategyFlag(cStrategyFlagAutoBuildMilitaryBuildings) == false)
-	{
-		return;
-	}
-	int numBases = kbBaseGetNumber(cMyID);
-	for (int i = 0; i < numBases; i++)
-	{
-		int baseID = kbBaseGetIDByIndex(cMyID, i);
-		if (kbBaseIsFlagSet(cMyID, baseID, cBaseFlagTownCenter) == false)
-		{
-			continue;
-		}
-		if (getCountOfOwnAliveBuildingInBase(cUnitTypeTemple, baseID) == 0 &&
-			getAmountBuildPlansInBase(cUnitTypeTemple, baseID) == 0)
-		{
-			createSimpleBuildPlan(cUnitTypeTemple, 1, 55, gMilitaryBuildingsCategoryID, baseID);
-			continue;
-		}
-		if (godBaseHasMilitaryBuilding(baseID) == false)
-		{
-			int puid = godPickMilitaryBuilding();
-			if (puid != -1)
-			{
-				createSimpleBuildPlan(puid, 1, 45, gMilitaryBuildingsCategoryID, baseID);
-			}
-		}
-	}
-}
-
 // Turrets upgraded as early as possible: research the next tower upgrade the
 // moment it is obtainable. We publish the plan through the engine's own
 // gTowerOffensiveResearchPlanID so the stock tower monitor defers to us.
@@ -1063,9 +716,9 @@ minInterval 10
 }
 
 // Pull back each attack that is outnumbered on the spot or standing in front of a
-// Titan. Every attack is judged on its own, so a failing raid never recalls the main
-// army. This keeps running while godTitanAllowsAttack holds new attacks back: an army
-// already in the field still comes home.
+// Titan. Every attack is judged on its own. This keeps running while
+// godTitanAllowsAttack holds new attacks back: an army already in the field still
+// comes home.
 rule godRetreatMonitor
 inactive
 minInterval 10
@@ -1101,226 +754,13 @@ minInterval 10
 	}
 }
 
-// Send part of the army to an ally whose base is being overrun, but only while our
-// own bases are quiet and only a capped share of it. This is the one custom plan that
-// may claim the land army, and it releases on its own.
-rule godAssistMonitor
-inactive
-minInterval 10
-{
-	if (aiPlanGetIsIDValid(gGodAssistPlanID) == true)
-	{
-		bool end = false;
-		if (gGodDefendHome == true)
-		{
-			end = true; // Our own bases come first.
-		}
-		if (kbPlayerHasLost(gGodAssistAllyID) == true
-			|| kbBaseGetIsIDValid(gGodAssistAllyID, gGodAssistBaseID) == false)
-		{
-			end = true;
-		}
-		if (end == false)
-		{
-			vector loc = kbBaseGetLocation(gGodAssistAllyID, gGodAssistBaseID);
-			float radius = kbBaseGetDistance(gGodAssistAllyID, gGodAssistBaseID) + cGodThreatExtraRadius;
-			float enemy = godPowerNear(cPlayerRelationEnemyNotGaia, loc, radius);
-			float allyPower = godPowerNear(gGodAssistAllyID, loc, radius);
-			if ((enemy * 100.0) <= (allyPower * cGodAssistRatioPercent))
-			{
-				if (gGodAssistQuietSince == -1)
-				{
-					gGodAssistQuietSince = xsGetTime();
-				}
-				if (xsGetTime() - gGodAssistQuietSince >= cGodAssistQuietSeconds)
-				{
-					end = true;
-				}
-			}
-			else
-			{
-				gGodAssistQuietSince = -1;
-			}
-		}
-		if (end == true)
-		{
-			aiEcho("[GodBot] Assist over - the army returns home.");
-			aiPlanDestroy(gGodAssistPlanID);
-			gGodAssistPlanID = -1;
-			gGodAssistAllyID = -1;
-			gGodAssistBaseID = -1;
-			gGodAssistQuietSince = -1;
-		}
-		return;
-	}
-	if (gGodDefendHome == true)
-	{
-		return;
-	}
-	int ally = -1;
-	int allyBase = godAssistTarget(ally);
-	if (allyBase == -1)
-	{
-		return;
-	}
-	int share = (kbUnitCount(cUnitTypeLogicalTypeLandMilitary, cMyID, cUnitStateAlive) * cGodAssistMaxSharePercent) / 100;
-	if (share < cGodAssistMinUnits)
-	{
-		return;
-	}
-	gGodAssistAllyID = ally;
-	gGodAssistBaseID = allyBase;
-	gGodAssistPlanID = createDefendPlanForPoint("GodBot Assist",
-		kbBaseGetLocation(gGodAssistAllyID, gGodAssistBaseID), cGodAssistPriority);
-	if (gGodAssistPlanID == -1)
-	{
-		return;
-	}
-	aiPlanAddUnitType(gGodAssistPlanID, cUnitTypeLogicalTypeLandMilitary, cGodAssistMinUnits, share, share);
-	aiPlanSetFlag(gGodAssistPlanID, cPlanFlagCantBeStolenFrom, true);
-	aiPlanSetVariableFloat(gGodAssistPlanID, cDefendPlanEngageRange, 0,
-		kbBaseGetDistance(gGodAssistAllyID, gGodAssistBaseID) + cGodThreatExtraRadius);
-	gGodAssistQuietSince = -1;
-	aiEcho("[GodBot] Assisting ally " + gGodAssistAllyID + " at base " + gGodAssistBaseID
-		+ ", sending up to " + share + " units.");
-}
-
-// While the base is overrun, put a tower on the side the enemy is coming from, so
-// the approach the engine's random tower ring leaves open is covered. One at a time;
-// the engine's towerManager still owns the tower count.
-rule godFrontTowerMonitor
-inactive
-minInterval 30
-{
-	if (aiPlanGetIsIDValid(gGodFrontTowerPlanID) == false)
-	{
-		gGodFrontTowerPlanID = -1;
-	}
-	if (gGodDefendHome == false)
-	{
-		return;
-	}
-	if (gGodFrontTowerPlanID != -1)
-	{
-		return; // One front tower at a time.
-	}
-	// The engine already tracks enemy power per defend base on a 5s timer.
-	int baseID = -1;
-	int worst = 0;
-	for (int i = 0; i < gDefendTCBases.size(); i++)
-	{
-		int power = gEnemyPowerInBases[i];
-		if (power > worst)
-		{
-			worst = power;
-			baseID = gDefendTCBases[i];
-		}
-	}
-	if (baseID == -1 || worst < cGodThreatMinPower)
-	{
-		return;
-	}
-	vector baseLoc = kbBaseGetLocation(cMyID, baseID);
-	int queryID = useSimpleUnitQuery(cUnitTypeLogicalTypeLandMilitary, cPlayerRelationEnemyNotGaia,
-		cUnitStateAlive, baseLoc, godBaseThreatRadius(baseID));
-	kbUnitQueryExecute(queryID);
-	int[] units = kbUnitQueryGetResults(queryID);
-	if (units.size() == 0)
-	{
-		return;
-	}
-	// The average direction to the enemy gives the side they are massing from.
-	vector away = vector(0.0, 0.0, 0.0);
-	int counted = 0;
-	for (int i = 0; i < units.size(); i++)
-	{
-		if (kbUnitGetIsIDValid(units[i]) == false)
-		{
-			continue;
-		}
-		away = away + (kbUnitGetPosition(units[i]) - baseLoc);
-		counted++;
-	}
-	if (counted == 0)
-	{
-		return;
-	}
-	vector spot = baseLoc + xsVectorNormalize(away) * cGodFrontTowerDistance;
-	gGodFrontTowerPlanID = godBuildTowerAt(spot, baseID);
-	if (gGodFrontTowerPlanID != -1)
-	{
-		aiEcho("[GodBot] Front tower toward the enemy at " + spot + ".");
-	}
-}
-
-// One raid at a time, and only when we cannot commit to a real attack. Cavalry goes
-// for the gold mine the enemy is working; the foot party goes for the drop site the
-// enemy left open. A raid is never a reason to split the army while pushing.
-rule godRaidMonitor
-inactive
-minInterval 60
-{
-	if (gGodDefendHome == true)
-	{
-		return;
-	}
-	// The strategy flag is the engine's attackManager gate; a raid reads our
-	// willingness to fight instead.
-	if (godTitanAllowsAttack() == false)
-	{
-		return;
-	}
-	if (godUnderAttack() == true)
-	{
-		return;
-	}
-	if (gGodPushing == true)
-	{
-		return; // Don't split the army while committing.
-	}
-	if (godRaidInField() == true)
-	{
-		return; // One raid at a time.
-	}
-	int target = aiGetMostHatedPlayerID();
-	if (target == -1)
-	{
-		return;
-	}
-	// Cavalry outruns the defence, so it is the first choice while it is available.
-	if (kbUnitCount(cUnitTypeAbstractCavalry, cMyID, cUnitStateAlive) >= cGodCavRaidMinCavalry)
-	{
-		int mine = godFindGoldMineTarget();
-		if (mine != -1)
-		{
-			vector raidPoint = kbUnitGetPosition(mine);
-			godLaunchRaid("GodBot Cavalry Raid", raidPoint, cUnitTypeAbstractCavalry, 3, 6, 15, true);
-			aiEcho("[GodBot] Cavalry raiding the enemy gold at " + raidPoint + ".");
-			return;
-		}
-	}
-	// Only raid with spare army; otherwise stay massed for the main attack.
-	int[] homeUnits = aiPlanGetUnits(gPrimaryLandDefendPlan);
-	if (kbUnitsGetPower(homeUnits, true) < 10)
-	{
-		return;
-	}
-	int site = godFindRaidTarget(target);
-	if (site == -1)
-	{
-		return;
-	}
-	vector raidPoint = kbUnitGetPosition(site);
-	godLaunchRaid("GodBot Raid", raidPoint, cUnitTypeLogicalTypeLandMilitary, 4, 8, 20, false);
-	aiEcho("[GodBot] Raiding enemy economy at " + raidPoint + ".");
-}
-
 // One structured line every 30s for offline analysis. Read it back from
 // temp/Logs/MythRetoldAIOutputPlayer<N>.txt; see AGENTS.md.
 rule godTelemetryMonitor
 inactive
 minInterval 30
 {
+	godCountPlayers();
 	int target = aiGetMostHatedPlayerID();
 	int enemyAge = -1;
 	if (target != -1)
@@ -1347,11 +787,6 @@ minInterval 30
 	{
 		defend = 1;
 	}
-	int assist = -1;
-	if (aiPlanGetIsIDValid(gGodAssistPlanID) == true)
-	{
-		assist = gGodAssistAllyID;
-	}
 	aiEcho("[GBOT] t=" + xsGetTime()
 		+ " age=" + kbPlayerGetAge(cMyID)
 		+ " vills=" + kbUnitCount(cUnitTypeAbstractVillager, cMyID, cUnitStateAlive)
@@ -1369,17 +804,7 @@ minInterval 30
 		+ " underAttack=" + underAttack
 		+ " enemies=" + gGodEnemyCount
 		+ " allies=" + gGodAllyCount
-		+ " defend=" + defend
-		+ " assist=" + assist);
-}
-
-// Player counts change as players are eliminated, so refresh them on a timer rather
-// than only at init.
-rule godPlayersMonitor
-inactive
-minInterval 30
-{
-	godCountPlayers();
+		+ " defend=" + defend);
 }
 
 //==============================================================================
@@ -1408,13 +833,8 @@ void postInit()
 {
 	aiEcho("=== [GodBot] postInit() - activating monitors ===");
 	xsEnableRule("godNavalCleanupMonitor");
-	xsEnableRule("godPlayersMonitor");
-	xsEnableRule("godVillageMonitor");
 	xsEnableRule("godTowerUpgradeMonitor");
 	xsEnableRule("godPushMonitor");
 	xsEnableRule("godRetreatMonitor");
-	xsEnableRule("godAssistMonitor");
-	xsEnableRule("godFrontTowerMonitor");
-	xsEnableRule("godRaidMonitor");
 	xsEnableRule("godTelemetryMonitor");
 }
