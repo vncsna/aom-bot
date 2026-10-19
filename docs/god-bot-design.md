@@ -177,8 +177,12 @@ not judged on an enemy count at all: it keeps going while the enemy is further t
 `godTelemetryMonitor` emits one line every 30s:
 
 ```
-[GBOT] t=… age=… vills=… pop=cur/cap army=… food=… wood=… gold=… enemyAge=… enemyTitan=0|1 state=hold|push|defend
+[GBOT] t=… age=… vills=… pop=cur/cap army=… food=… wood=… gold=… enemyAge=… enemyTitan=0|1 state=hold|push underAttack=0|1
 ```
+
+`state` is the stance — `push` while the army is committed to a decisive push, `hold`
+otherwise. Being under attack is a separate field because the stance does not change when a
+base is poked: the army stays in the field, and folding the two together would hide it.
 
 It lands in the per-player AI log, `temp/Logs/MythRetoldAIOutputPlayer<N>.txt` (UTF-16).
 `scripts/parse_ai_log.py` turns it into a per-run summary. This is the feedback loop that

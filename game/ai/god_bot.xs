@@ -1092,9 +1092,12 @@ minInterval 30
 	{
 		state = "push";
 	}
-	else if (godUnderAttack() == true)
+	// Reported on its own line: the stance stays "push" while the army is in the
+	// field, so folding the two together would hide a base being hit during a push.
+	int underAttack = 0;
+	if (godUnderAttack() == true)
 	{
-		state = "defend";
+		underAttack = 1;
 	}
 	aiEcho("[GBOT] t=" + xsGetTime()
 		+ " age=" + kbPlayerGetAge(cMyID)
@@ -1106,7 +1109,8 @@ minInterval 30
 		+ " gold=" + xsFloatToInt(kbResourceGet(cResourceGold))
 		+ " enemyAge=" + enemyAge
 		+ " enemyTitan=" + enemyTitan
-		+ " state=" + state);
+		+ " state=" + state
+		+ " underAttack=" + underAttack);
 }
 
 //==============================================================================
