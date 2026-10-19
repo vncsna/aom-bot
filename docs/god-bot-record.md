@@ -41,7 +41,7 @@ Keep it small:
 
 | Date | Commit | Map | Opponent | Result | Length | Notes |
 |---|---|---|---|---|---|---|
-| 2026-10-19 | `f4ac062` | mirage | chairon / Balanced / Huitzilopochtli | win | ~34:30 | Ra. Push held almost unbroken from 17:30 (one hold at 27:32), but the bank grew past 30k from 23:00 on with army stuck near 140 at the 250 cap. Our Titan attack retreated 15 times (8–23 enemies vs our 1, then the enemy Titan at 33:00). Enemy reached Mythic at 18:00, no age deficit |
+| 2026-10-19 | `f4ac062` | mirage | chairon / Balanced / Huitzilopochtli | win | ~34:30 | Ra. Push held almost unbroken from 17:30 (one hold at 27:32), but the bank grew past 30k from 23:00 on with army stuck near 140 at the 250 cap. Our Titan attack retreated 13 times (8–23 enemies vs our 1, then the enemy Titan at 33:00). Enemy reached Mythic at 18:00, no age deficit |
 | 2026-10-18 | `315a62f`–`c496020` | mirage | chairon / Conqueror / Odin | win | 26:31 | Enemy resigned with 7 power left, under attack in its bases from 10:02 to the end. Push/slow flipped 5 times, not 15. The gate never reopened after the 19:41 retreat, so the last 7 minutes were passive while the bank grew past 9k |
 | 2026-10-18 | `a4e1d73` | mirage | chairon / Conqueror / Shennong | win | 26:31 | Enemy resigned. First run with the cavalry gold raid (`e747bea`). No raid landed; push/slow flapped 15 times in 20:52–23:04; the Wonder never started — blocked on gold excess, then on favour |
 | 2026-10-18 | `688a149` | mirage | chairon / Defender / Demeter | win | 21:31 | Ground the enemy down base by base, but all four raids aborted and the push cadence flapped until 14:54 |
@@ -51,6 +51,8 @@ Keep it small:
 
 | Date | Commit | Change | Expected effect | Observed |
 |---|---|---|---|---|
+| 2026-10-19 | `7cf3eaa` | A Mythic stalemate buys Secrets of the Titans from the bank, and the Wonder waits until the first Titan is out | The Titan arrives on the stalemate clock instead of whenever the engine's surplus check passes, and the army keeps the resources until then | — |
+| 2026-10-19 | `83c9130` | The retreat monitor leaves the engine's own Titan plans alone | The Titan is not recalled every ten seconds, so it reaches a base instead of standing idle | — |
 | 2026-10-18 | `514db6f` | A retreat regroups on the interval of the state the bot is in, not always the slow one | A retreat during a push re-commits on the fast interval, instead of sitting idle at pop cap for a whole slow interval | — |
 | 2026-10-18 | `c496020` | A retreat sets the regroup interval to the slow rhythm explicitly | A retreat during a push buys a full slow interval, instead of re-committing on the 90s cadence | Worked, and overcorrected: the 19:41 retreat set the interval to the 450s slow rhythm while the push state stayed true, so the gate never reopened before the enemy resigned — 7 passive minutes at pop cap with a 9k bank. A dedicated, shorter regroup constant, or the push interval while still pushing, would keep the regroup deliberate without the dead time. Retuned in `514db6f` |
 | 2026-10-18 | `c274af6` | The push is decided on army power, with an asymmetric margin (150% to commit, 110% to hold) | The cadence stops flipping; a push survives a wobble around the threshold | Held. 5 push/slow transitions in 26 minutes (09:40, 11:30, 11:54, 18:18, 18:49) against 15 in two minutes before, and the 19:41 retreat — 44 of 80 pop lost — did not flip the cadence |
