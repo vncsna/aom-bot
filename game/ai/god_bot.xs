@@ -71,7 +71,7 @@ int[] gGodRetreatSamplePops = default;
 int[] gGodRetreatSampleTimes = default;
 bool gGodHeldTitanGate = false;
 int gGodRaidPlanID = -1;
-int gGodCavRaidPlanID = -1;
+bool gGodRaidIsCavalry = false;
 
 //==============================================================================
 // Helpers
@@ -282,6 +282,36 @@ int godEnemyTitanID()
 	return getUnit(cUnitTypeAbstractTitan, target, cUnitStateAlive);
 }
 
+// Only one raid of either kind runs at a time.
+bool godRaidInField()
+{
+	return aiPlanGetIsIDValid(gGodRaidPlanID);
+}
+
+// Set a raid up like the engine's own attacks: keep builders home, let god powers
+// support it, and stop other plans pulling its units away. This owns the raid slot,
+// so the caller only has to pick a target.
+void godLaunchRaid(string name = "", vector point = cInvalidVector, int unitType = -1,
+	int wantCount = 0, int maxCount = 0, int gatherWaitSeconds = 0, bool cavalry = false)
+{
+	vector gatherPoint = aiPlanGetVariableVector(gPrimaryLandDefendPlan, cDefendPlanGatherPoint, 0);
+	int planID = aiPlanCreate(name, cPlanAttack, -1, gMilitaryAttackingCategoryID);
+	aiPlanSetVariableInt(planID, cAttackPlanTargetMode, 0, cAttackPlanTargetModePoint);
+	aiPlanSetVariableVector(planID, cAttackPlanTargetPoint, 0, point);
+	aiPlanSetVariableVector(planID, cAttackPlanGatherPoint, 0, gatherPoint);
+	aiPlanSetVariableFloat(planID, cAttackPlanGatherDistance, 0, 15.0);
+	aiPlanSetVariableInt(planID, cAttackPlanGatherWaitTime, 0, gatherWaitSeconds * 1000);
+	aiPlanSetVariableInt(planID, cAttackPlanDoneMode, 0, cAttackPlanDoneModeNoTarget | cAttackPlanDoneModeNoUnits);
+	aiPlanAddUnitType(planID, unitType, 2, wantCount, maxCount);
+	preventSomeBuildersFromJoiningAttack(planID);
+	setDefaultAttackPlanTargetUnitTypes(planID);
+	addPlanToAllSuitableGodpowerPlans(planID);
+	aiPlanSetPriority(planID, 70);
+	aiPlanSetFlag(planID, cPlanFlagCantBeStolenFrom, true);
+	gGodRaidPlanID = planID;
+	gGodRaidIsCavalry = cavalry;
+}
+
 // A Titan counts as one enemy unit, so the outnumbered check never sees it coming.
 bool godTitanNear(vector location = cInvalidVector)
 {
@@ -333,7 +363,7 @@ bool godAttackIsLosing(int planID = -1, int ourCount = 0, int ourPop = 0, int sa
 	// A cavalry raid is fast enough to leave, so it is not called off by an enemy
 	// count at all: it keeps going while the enemy is still this far off, and comes
 	// home once they close in.
-	if (planID == gGodCavRaidPlanID)
+	if (planID == gGodRaidPlanID && gGodRaidIsCavalry == true)
 	{
 		int closingIn = godEnemyMilitaryNear(planLoc, cGodCavRaidRetreatRadius);
 		if (closingIn > 0)
@@ -363,8 +393,9 @@ void godRetreatPlan(int planID = -1)
 {
 	aiPlanSetState(planID, cPlanStateDone);
 	// Don't immediately walk the main army back out; regroup first. A failed raid
-	// shouldn't hold up the main attack, and a cavalry raid runs on its own clock.
-	if (planID != gGodRaidPlanID && planID != gGodCavRaidPlanID)
+	// of either kind shouldn't hold up the main attack, and a cavalry raid runs on
+	// its own clock.
+	if (planID != gGodRaidPlanID)
 	{
 		// Regroup on the rhythm the bot is actually on: the fast interval while
 		// pushing, the full slow one otherwise. Setting it here keeps the wait
@@ -980,7 +1011,7 @@ minInterval 90
 	{
 		return; // Don't split the army while committing.
 	}
-	if (aiPlanGetIsIDValid(gGodRaidPlanID) == true || aiPlanGetIsIDValid(gGodCavRaidPlanID) == true)
+	if (godRaidInField() == true)
 	{
 		return; // One raid at a time.
 	}
@@ -1001,23 +1032,7 @@ minInterval 90
 		return;
 	}
 	vector raidPoint = kbUnitGetPosition(raidTargetID);
-	vector gatherPoint = aiPlanGetVariableVector(gPrimaryLandDefendPlan, cDefendPlanGatherPoint, 0);
-	int planID = aiPlanCreate("GodBot Raid", cPlanAttack, -1, gMilitaryAttackingCategoryID);
-	aiPlanSetVariableInt(planID, cAttackPlanTargetMode, 0, cAttackPlanTargetModePoint);
-	aiPlanSetVariableVector(planID, cAttackPlanTargetPoint, 0, raidPoint);
-	aiPlanSetVariableVector(planID, cAttackPlanGatherPoint, 0, gatherPoint);
-	aiPlanSetVariableFloat(planID, cAttackPlanGatherDistance, 0, 15.0);
-	aiPlanSetVariableInt(planID, cAttackPlanGatherWaitTime, 0, 20 * 1000);
-	aiPlanSetVariableInt(planID, cAttackPlanDoneMode, 0, cAttackPlanDoneModeNoTarget | cAttackPlanDoneModeNoUnits);
-	aiPlanAddUnitType(planID, cUnitTypeLogicalTypeLandMilitary, 2, 4, 8);
-	// Set up like the engine's own attacks: keep builders home, let god powers
-	// support the raid, and stop other plans pulling its units away.
-	preventSomeBuildersFromJoiningAttack(planID);
-	setDefaultAttackPlanTargetUnitTypes(planID);
-	addPlanToAllSuitableGodpowerPlans(planID);
-	aiPlanSetPriority(planID, 70);
-	aiPlanSetFlag(planID, cPlanFlagCantBeStolenFrom, true);
-	gGodRaidPlanID = planID;
+	godLaunchRaid("GodBot Raid", raidPoint, cUnitTypeLogicalTypeLandMilitary, 4, 8, 20, false);
 	aiEcho("[GodBot] Raiding enemy economy at " + raidPoint + ".");
 }
 
@@ -1038,7 +1053,7 @@ minInterval 60
 	{
 		return;
 	}
-	if (aiPlanGetIsIDValid(gGodRaidPlanID) == true || aiPlanGetIsIDValid(gGodCavRaidPlanID) == true)
+	if (godRaidInField() == true)
 	{
 		return; // One raid at a time.
 	}
@@ -1052,21 +1067,7 @@ minInterval 60
 		return; // Nobody is mining, nothing to hit.
 	}
 	vector raidPoint = kbUnitGetPosition(raidTargetID);
-	vector gatherPoint = aiPlanGetVariableVector(gPrimaryLandDefendPlan, cDefendPlanGatherPoint, 0);
-	int planID = aiPlanCreate("GodBot Cavalry Raid", cPlanAttack, -1, gMilitaryAttackingCategoryID);
-	aiPlanSetVariableInt(planID, cAttackPlanTargetMode, 0, cAttackPlanTargetModePoint);
-	aiPlanSetVariableVector(planID, cAttackPlanTargetPoint, 0, raidPoint);
-	aiPlanSetVariableVector(planID, cAttackPlanGatherPoint, 0, gatherPoint);
-	aiPlanSetVariableFloat(planID, cAttackPlanGatherDistance, 0, 15.0);
-	aiPlanSetVariableInt(planID, cAttackPlanGatherWaitTime, 0, 15 * 1000);
-	aiPlanSetVariableInt(planID, cAttackPlanDoneMode, 0, cAttackPlanDoneModeNoTarget | cAttackPlanDoneModeNoUnits);
-	aiPlanAddUnitType(planID, cUnitTypeAbstractCavalry, 2, 3, 6);
-	preventSomeBuildersFromJoiningAttack(planID);
-	setDefaultAttackPlanTargetUnitTypes(planID);
-	addPlanToAllSuitableGodpowerPlans(planID);
-	aiPlanSetPriority(planID, 70);
-	aiPlanSetFlag(planID, cPlanFlagCantBeStolenFrom, true);
-	gGodCavRaidPlanID = planID;
+	godLaunchRaid("GodBot Cavalry Raid", raidPoint, cUnitTypeAbstractCavalry, 3, 6, 15, true);
 	aiEcho("[GodBot] Cavalry raiding the enemy gold at " + raidPoint + ".");
 }
 
