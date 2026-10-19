@@ -111,6 +111,13 @@ const int cGodFallbackRatioPercent = 150;
 // after this long. Two thresholds, so the army does not shuttle back and forth.
 const int cGodFallbackReleasePercent = 100;
 const int cGodFallbackHoldSeconds = 60;
+// The fallback is for the main army losing a fight, not for a lone unit or a small
+// garrison dying at a forward base. There is nothing worth saving there, and
+// recalling the army abandons whatever it was doing elsewhere. Require this much
+// power at the threatened base, and require it to be most of our army, before
+// anything moves.
+const int cGodFallbackMinOwnPower = 15;
+const int cGodFallbackMainSharePercent = 50;
 // Weights for how defensible a base is. Towers and a Fortress matter most; houses
 // are the least of it but still block and shelter.
 const float cGodScoreTower = 3.0;
@@ -1644,6 +1651,18 @@ minInterval 5
 	float enemy = godPowerNear(cPlayerRelationEnemyNotGaia, loc, radius);
 	float ours = godPowerNear(cMyID, loc, radius);
 	if (enemy < cGodThreatMinPower || (enemy * 100.0) <= (ours * cGodFallbackRatioPercent))
+	{
+		return;
+	}
+	if (ours < cGodFallbackMinOwnPower)
+	{
+		return; // Nothing here worth saving; a small force dying is not a retreat.
+	}
+	// Only the main army retreats. A force split off from the army losing a fight is
+	// not a reason to gather the whole army at the capital: doing that left the army
+	// marching back and forth for the whole match instead of fighting, and fed it to
+	// the enemy one unit at a time as it straggled home.
+	if ((ours * 100.0) < (godArmyPower(cMyID) * cGodFallbackMainSharePercent))
 	{
 		return;
 	}

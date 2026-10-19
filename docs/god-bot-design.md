@@ -244,6 +244,12 @@ ground for. The plan outranks the engine's primary defend plan so the units move
 releases after `cGodFallbackHoldSeconds`, or once the enemy has dropped back
 (`cGodFallbackReleasePercent`), and while it is active the engine cannot attack or raid.
 
+It only fires for the main army: the base has to hold at least `cGodFallbackMinOwnPower` of
+our power *and* most of our army (`cGodFallbackMainSharePercent`). A lone unit or a garrison
+dying at a forward base is not a reason to gather the army at the capital — without the
+guard, the whole army was recalled to the main base twenty-eight times in one match, marching
+back and forth instead of fighting, and straggling into the enemy one unit at a time.
+
 **Help an ally.** `godAssistMonitor` sends a capped share (`cGodAssistMaxSharePercent`) of the
 land army to the ally base that most needs it — preferring the ally closest to being wiped
 out, then the base where the enemy's edge is biggest. Only ally bases within
@@ -318,6 +324,8 @@ change was meant to do are summarised in [`god-bot-record.md`](god-bot-record.md
 | `cGodFallbackRatioPercent` | Enemy-to-us power on a base that triggers a fallback |
 | `cGodFallbackReleasePercent` | Enemy-to-us power that releases the fallback |
 | `cGodFallbackHoldSeconds` | How long a fallback lasts before it is released |
+| `cGodFallbackMinOwnPower` | Least army power at a base worth retreating |
+| `cGodFallbackMainSharePercent` | Share of our army a base must hold before it retreats |
 | `cGodScoreTower` / `cGodScoreTownCenter` / `cGodScoreFortress` / `cGodScoreHouse` | Weights scoring how defensible a base is |
 | `cGodFallbackPriority` | Priority of the fallback plan (engine's primary defend is 10) |
 | `cGodAssistRatioPercent` | Enemy-to-ally power on an ally base that needs help |
