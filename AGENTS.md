@@ -23,6 +23,38 @@ achieve the behaviour, not to record how it was dictated.
 
 ---
 
+## Complexity Budget
+
+`god_bot.xs` grows by accretion unless it is capped. These are ceilings, not targets.
+
+| Metric | Limit |
+|---|---|
+| `game/ai/god_bot.xs` lines | 1,500 |
+| `rule` blocks (monitors) | 10 |
+| `const` declarations | 30 |
+| File-scoped `gGod*` globals | 20 |
+| Custom plans that can own the land army | 1 (transient assist) |
+| Army-posture states | 1 boolean |
+| Work in the strategy `mUpdateFunc` | O(1) |
+| Fields in the `[GBOT]` line | 20 |
+
+The invariants behind the numbers:
+
+- The engine's `gPrimaryLandDefendPlan` owns the land army by default. At most one
+  custom plan may claim it at a time, and it must release on its own.
+- The per-second strategy update does not loop over players × bases and does not run
+  per-base KB queries. Periodic work belongs in a `rule` with a `minInterval`.
+- No plan is created at a point that has not been path-validated.
+- A new monitor, plan, or tunable replaces an existing one. If it cannot, the same
+  change raises this budget and says why.
+- A behaviour change names the piece it removes. "It was easier to add a plan" is not
+  a reason.
+
+`scripts/check_budget.py` enforces the countable limits in CI beside
+`scripts/check_xs.py`.
+
+---
+
 ## Documentation Conventions
 
 Docs that describe this bot directly are prefixed `god-bot-` — for example
