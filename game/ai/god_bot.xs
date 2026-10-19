@@ -1026,14 +1026,14 @@ bool godTitanAllowsAttack()
 		|| aiGetCurrentMilitaryPop() >= cGodTitanHuntArmyPop;
 }
 
-// The ally base that most needs help, or -1. Prefers the ally closest to being wiped
-// out (fewest Town Center bases left), then the base where the enemy's edge is
-// biggest. Only reads allies while our own bases are quiet, and fills in the ally
-// and base ids the assist plan is built from.
-int godAssistTarget()
+// The ally base that most needs help, or -1, with the ally's player id written to
+// allyID. Prefers the ally closest to being wiped out (fewest Town Center bases
+// left), then the base where the enemy's edge is biggest. Only reads allies while
+// our own bases are quiet. Pure: it writes nothing but its out parameter, so the
+// stance check and the assist plan both get the same answer without racing.
+int godAssistTarget(ref int allyID)
 {
-	gGodAssistAllyID = -1;
-	gGodAssistBaseID = -1;
+	allyID = -1;
 	if (gGodTeamGame == false || gGodThreatPower >= cGodThreatMinPower)
 	{
 		return -1;
@@ -1091,8 +1091,7 @@ int godAssistTarget()
 			bestGap = candidateGap;
 		}
 	}
-	gGodAssistAllyID = bestAlly;
-	gGodAssistBaseID = bestBase;
+	allyID = bestAlly;
 	return bestBase;
 }
 
@@ -1121,7 +1120,8 @@ int godPickStance()
 	{
 		return cGodStanceFortify;
 	}
-	if (godAssistTarget() != -1)
+	int assistAlly = -1;
+	if (godAssistTarget(assistAlly) != -1)
 	{
 		return cGodStanceAssist;
 	}
@@ -1691,7 +1691,9 @@ minInterval 10
 	{
 		return;
 	}
-	if (godAssistTarget() == -1)
+	int ally = -1;
+	int allyBase = godAssistTarget(ally);
+	if (allyBase == -1)
 	{
 		return;
 	}
@@ -1700,6 +1702,8 @@ minInterval 10
 	{
 		return;
 	}
+	gGodAssistAllyID = ally;
+	gGodAssistBaseID = allyBase;
 	gGodAssistPlanID = createDefendPlanForPoint("GodBot Assist",
 		kbBaseGetLocation(gGodAssistAllyID, gGodAssistBaseID), cGodAssistPriority);
 	if (gGodAssistPlanID == -1)
