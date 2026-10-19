@@ -1747,8 +1747,8 @@ minInterval 30
 	{
 		return;
 	}
-	// The enemy's centroid gives the direction they are massing from.
-	vector centroid = vector(0.0, 0.0, 0.0);
+	// The average direction to the enemy gives the side they are massing from.
+	vector away = vector(0.0, 0.0, 0.0);
 	int counted = 0;
 	for (int i = 0; i < units.size(); i++)
 	{
@@ -1756,15 +1756,14 @@ minInterval 30
 		{
 			continue;
 		}
-		centroid = centroid + kbUnitGetPosition(units[i]);
+		away = away + (kbUnitGetPosition(units[i]) - baseLoc);
 		counted++;
 	}
 	if (counted == 0)
 	{
 		return;
 	}
-	centroid = centroid / xsIntToFloat(counted);
-	vector spot = baseLoc + xsVectorNormalize(centroid - baseLoc) * cGodFrontTowerDistance;
+	vector spot = baseLoc + xsVectorNormalize(away) * cGodFrontTowerDistance;
 	gGodFrontTowerPlanID = godBuildTowerAt(spot, gGodThreatBaseID);
 	if (gGodFrontTowerPlanID != -1)
 	{
