@@ -113,25 +113,31 @@ second plan.
 
 **A Titan breaks a stalemate.** Once both sides have sat in Mythic for
 `cGodStalemateSeconds` with no age lead, neither side is closing the game: the armies trade
-at the pop cap and the bank piles up. The bot then goes for a Titan, the one thing that ends
-a game attrition cannot. The order is fixed by what the game allows — research
-`cTechSecretsOfTheTitans` for the first Titan Gate, and only build the Wonder *after* the
-first Titan is out, because a Wonder is what unlocks more Titans (`titanGateRebuyMonitor`,
-and re-research once the Wonder Age rules are on).
+at the pop cap and the bank piles up. A stalemate unlocks both win conditions. The Titan comes
+first in practice — research `cTechSecretsOfTheTitans` for the first Titan Gate, and the
+Wonder is allowed too, because a Wonder is what unlocks more Titans (`titanGateRebuyMonitor`,
+and re-research once the Wonder Age rules are on). The bot does not wait for the Titan before
+the Wonder: a Titan the game will not offer, or will not pay for, must not take the Wonder
+down with it — that is what left the 19 Oct match grinding for 44 stalemated minutes with
+33k wood banked and no win condition on the map.
 
 **The Titan is bought from the bank.** The engine's own `secretsOfTheTitansMonitor` waits
 for a surplus its needs bookkeeping reports, which in practice is long after the bank is
 already full — the 19 Oct match held its Titan back to 31:00 with 30k banked. The bot reads
 the bank directly instead: `godResearchTitanTech` starts the research as soon as the bank
-covers the tech plus `cGodTitanReservePercent` on top, so the army keeps training. A tech
-uses no builders and no army, so the Titan costs the army nothing while it is bought.
+covers the tech plus `cGodTitanReservePercent` on top, so the army keeps training. Favour is
+exempt from that reserve: it is not banked like food, wood and gold but spent as it arrives
+on myth units, so a reserve on top of it is a surplus that never comes. A tech uses no
+builders and no army, so the Titan costs the army nothing while it is bought. When a
+stalemate is latched and the tech is *not* bought, the guard that held it is named once a
+minute (`Titan held: …`, with the bank beside it) — otherwise only the successful purchase
+logs, and a stalled stalemate looks exactly like a satisfied one.
 
 **No Wonder or Titan Gate under pressure.** While `gDefensivelyOverrun` is set, any Wonder
 build plan is cancelled and an uncommitted Titan Gate is postponed. The stalemate flag stays
 set, so the project resumes once the attack is over; a gate already under construction is
-left alone so the investment is not wasted. `cStrategyFlagBuildWonder` is off until the
-first Titan is out, so a Wonder can never jump the queue ahead of the Titan it is meant to
-extend.
+left alone so the investment is not wasted. Neither flag is set while fortifying, so a long
+investment is never started with the enemy on our bases.
 
 ### Navy
 

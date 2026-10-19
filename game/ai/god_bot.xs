@@ -1003,7 +1003,12 @@ void godManageWonderAndTitanGate(ref StrategyData data)
 	// investment that would be lost while several players are on our bases.
 	bool attacked = godUnderAttack() == true || gGodStance == cGodStanceFortify;
 	data.setFlag(cStrategyFlagBuildTitan, gGodStalemate == true && attacked == false);
-	data.setFlag(cStrategyFlagBuildWonder, gGodTitanReached == true && attacked == false);
+	// Both stalemate win conditions in one place. The Wonder used to wait for the
+	// first Titan, on the grounds that a Wonder is what unlocks more of them — but
+	// that made a Titan that never came (a tech the game will not offer, or no favour
+	// to pay for it) took the Wonder down with it, and the match could not end. A
+	// stalemate unlocks the Wonder on its own.
+	data.setFlag(cStrategyFlagBuildWonder, (gGodTitanReached == true || gGodStalemate == true) && attacked == false);
 	if (attacked == true)
 	{
 		godCancelBuildPlans(cUnitTypeWonder);
