@@ -43,6 +43,7 @@ Keep it small:
 |---|---|---|---|---|---|---|
 | 2026-10-18 | pre-`6f7530a` | mirage | chairon / Balanced / Odin | win | 26:25 | Raids aborted on contact, own Titan attacks recalled, push/slow cadence thrashed |
 | 2026-10-18 | `688a149` | mirage | chairon / Defender / Demeter | win | 21:31 | Ground the enemy down base by base, but all four raids aborted and the push cadence flapped until 14:54 |
+| 2026-10-18 | `a4e1d73` | mirage | chairon / Conqueror / Shennong | win | 26:31 | Enemy resigned. First run with the cavalry gold raid (`e747bea`). No raid landed; push/slow flapped 15 times in 20:52–23:04; the Wonder never started — blocked on gold excess, then on favour |
 
 ## Behaviour changes
 
@@ -50,7 +51,9 @@ Keep it small:
 |---|---|---|---|
 | `f806577` | Warship monitor destroys its query and skips dead units | No query warnings or failed deletes on a non-naval map | Clean — no query-name or failed-delete warnings. A warship is still trained and scrapped twice (10:00, 16:30) on a non-naval map, so the leak is upstream of this monitor |
 | `351a752` | Raids pick the least-defended drop site and are judged on the troops on the target | Raids land instead of aborting within seconds | No effect — all four raids aborted (12 of 16 lost; then 18, 15 and 25 enemies vs our 8, 8 and 5). Raid parties stay ~8 pop, and two raids reused the same target point |
-| `91bc1e9` | A defend flicker no longer ends a push; push reads the enemy army to decide it outguns it | A stable 90s cadence once ahead, instead of thrashing to 1350s | Partial — no 1350s thrash, but push and slow still flip: push 09:30 → slow 10:27; push 13:48 → slow 14:48 → push 14:54. The 90s interval then held to the end |
+| `91bc1e9` | A defend flicker no longer ends a push; push reads the enemy army to decide it outguns it | A stable 90s cadence once ahead, instead of thrashing to 1350s | Partial — no 1350s thrash, but push and slow still flip: push 09:30 → slow 10:27; push 13:48 → slow 14:48 → push 14:54. The 90s interval then held to the end. Next run: it did not hold — 15 flips between 20:52 and 23:04, some a second apart, once the enemy army reached Mythic. The ratio test has no hysteresis |
+| `e747bea` | Cavalry raid on the enemy gold; a drop site with a guard is skipped | A fast party reaches the miners and leaves before the army answers | Ran twice (20:00, 24:00), both at the same mine (35, 7), both called off before landing ("1 enemy closed in", then "10 enemies closed in"). The foot raid still aborts every time: 11 vs our 5, 11 vs our 1, 15 vs our 2 |
+| `a4e1d73` | Naval policy re-applied on every age change, and a leaked warship named in the log | No warship on a non-naval map, or the leak named so it can be traced | Re-apply fired at each age change (03:31, 09:32, 19:20) and the names worked, but two warships still leaked — both the Dock's Egyptian myth unit: `Leviathan#1311517` at 10:00 (Classical) and `WarTurtle#1311907` at 19:30 (Mythic). The naval flags do not cover Dock myth training |
 
 Fill in **Observed** after the next match; if a change did not help, say so here and revert
 it or retune it rather than leaving the row silent.
