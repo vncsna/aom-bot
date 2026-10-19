@@ -1842,6 +1842,9 @@ minInterval 15
 			aiPlanDestroy(gGodChokePlanID);
 			gGodChokePlanID = -1;
 		}
+		// Forget the choke between fortify spells, so the next one is chosen fresh.
+		gGodChokePoint = cInvalidVector;
+		gGodChokeEnemyID = -1;
 		return;
 	}
 	// Block the player pressing our worst-hit base.
@@ -1869,8 +1872,17 @@ minInterval 15
 		return;
 	}
 	int baseCount = kbBaseGetNumber(cMyID);
-	bool needChoke = (enemy != gGodChokeEnemyID || baseCount != gGodChokeBaseCount
-		|| gGodChokePoint == cInvalidVector);
+	bool needChoke = (gGodChokePoint == cInvalidVector || baseCount != gGodChokeBaseCount
+		|| gGodChokeEnemyID == -1);
+	if (needChoke == false && enemy != gGodChokeEnemyID)
+	{
+		// Keep the choke we are on until the enemy it faces has stopped pressing us.
+		// Re-picking it whenever the "worst" base flips re-tasks the whole army
+		// between two attackers every fifteen seconds, which is worse than holding a
+		// slightly stale choke.
+		float oldPower = godPowerNear(gGodChokeEnemyID, kbBaseGetLocation(cMyID, base), godBaseThreatRadius(base));
+		needChoke = oldPower < cGodThreatMinPower;
+	}
 	if (needChoke == true)
 	{
 		gGodChokePoint = godFindChoke(enemy);

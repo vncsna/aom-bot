@@ -264,6 +264,9 @@ graph the map is built from: it walks the land area path from our main base to t
 and takes the area much smaller than the rest of the path (`cGodChokeMaxTilesPercent`), on our
 half of the map. When the map has no clear narrow ground — or the path is impassable — it
 falls back to a point on the straight line to the enemy. A fallback always wins the army back.
+The choke is sticky within a fortify spell: it is only re-picked once the enemy it faces has
+stopped pressing us, so the army is not re-tasked between two attackers as the "worst" base
+flips.
 
 **Towers on the threatened side.** The engine's `towerManager` places towers on a random ring
 around the Town Center, so the approach the enemy uses is often left open.
