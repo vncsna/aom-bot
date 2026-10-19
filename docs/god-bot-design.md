@@ -5,7 +5,7 @@ behaviour is expressed lives in [`ai-architecture.md`](ai-architecture.md).
 
 ## Goal
 
-**Always win.** The bot plays every 1v1 against the stock personalities to win, and it is
+**Always win.** The bot plays every match to win — 1v1 and team games alike — and it is
 expected to win by using powers a human player does not have. A loss is a bug to be
 diagnosed from the telemetry, not an acceptable outcome of a fair game.
 
@@ -40,6 +40,12 @@ the goal:
 3. **Attacks that only commit when the bot knows they are worth it.** A slow rhythm, a
    willingness to pull back, and raids aimed at whatever the enemy left open.
 
+A 1v1 has one enemy and one front, so those three levers are enough. A team game can put
+two or more enemies on our bases at once, or leave an ally about to be wiped out, and the
+1v1 posture has no answer for either. The bot therefore reads the shape of the game each
+second and picks a **stance**; in a 1v1 it never leaves the original stance, so the tested
+1v1 behaviour is unchanged. See [Team games](#team-games).
+
 ## Identity
 
 `GodBot.personality` is purely cosmetic — it points the skirmish lobby name, tooltip and
@@ -59,16 +65,21 @@ becomes a debugger breakpoint that freezes the bot — see the AI Debugger Confi
   strategy. The stock strategies are never added.
 - The strategy enables every engine flag, then applies our policy (naval off, slow cadence).
   A strategy update runs once a second for the policy that has to react to the live game
-  (Wonder/Titan Gate gating, push state).
+  (Wonder/Titan Gate gating, push state, the threat reading and the stance).
 - Monitors handle everything that is naturally periodic. They are enabled in `postInit()`.
 
 | Piece | Where | Job |
 |---|---|---|
-| Strategy | `godBotStrategy()` | Base policy: flags, naval, attack cadence and gate, push state, stalemate Titan |
+| Strategy | `godBotStrategy()` | Base policy: flags, naval, attack cadence and gate, push state, stalemate Titan, threat reading and stance |
 | `godNavalCleanupMonitor` | 30s | Scrap warships on non-naval maps |
+| `godPlayersMonitor` | 30s | Recount the enemies and allies still in the game |
 | `godVillageMonitor` | 20s | One Temple + one military building per village |
 | `godTowerUpgradeMonitor` | 10s | Research tower upgrades as early as possible |
 | `godRetreatMonitor` | 10s | Pull an attack back when it is bleeding out |
+| `godFallbackMonitor` | 5s | Move the army to our strongest defended base when it is losing |
+| `godAssistMonitor` | 10s | Send a capped share of the army to an ally about to lose a base |
+| `godFrontTowerMonitor` | 30s | Build a tower toward the enemy while fortifying |
+| `godChokeMonitor` | 15s | Hold the choke between us and the attacking enemy while fortifying |
 | `godRaidMonitor` | 90s | Hit the enemy economy with a small group |
 | `godCavRaidMonitor` | 60s | Cavalry raid on the gold mine the enemy is working |
 | `godTelemetryMonitor` | 30s | Emit a `[GBOT]` metrics line for offline analysis |
@@ -186,6 +197,67 @@ when the enemy's army is away from its mines. Cavalry outruns the defence, so th
 not judged on an enemy count at all: it keeps going while the enemy is further than
 `cGodCavRaidRetreatRadius` away, and comes home once they close in.
 
+### Team games
+
+A 1v1 is one enemy and one front. A team game can put two or three enemies on our bases at
+once, or leave an ally about to be wiped out, and the 1v1 posture has no answer for either:
+its raids assume the enemy's army is away, and its defence only reacts to one global
+under-attack flag. The bot reads the shape of the game every second and picks a **stance**.
+The reading and the stance are only ever non-default in a team game, so a 1v1 runs the
+original code paths unchanged.
+
+**The game shape.** `godCountPlayers()` counts the live enemies and allies (the same loop
+`core/chats.xs` uses to total team scores). `gGodTeamGame` is set when there is more than
+one enemy or any ally. `godPlayersMonitor` refreshes it every 30s as players are eliminated.
+
+**The threat, per base and per player.** `godUpdateThreat()` adds up the enemy land-military
+power on each of our Town Center bases — and, separately, how many distinct enemy players
+have a real force (`cGodThreatMinPower`) on any of them. "Three raids from three players"
+then reads as three players on our bases, instead of one global flag. This is what the
+fortify stance and the fallback rule both decide from.
+
+**Stances.** `godPickStance()` returns one of three:
+
+- **normal** — the 1v1 behaviour, unchanged. Also the state of a team game with no pressure.
+- **fortify** — two or more enemy players are on our bases, or the enemy on our bases outguns
+  the army at home (`cGodFortifyThreatPercent`). The stance is sticky: it holds for
+  `cGodFortifyQuietSeconds` after the bases go quiet, so it cannot flicker as raiders step in
+  and out of a base radius. While fortified: no raids, no push, no Wonder or Titan Gate, the
+  army stays home, and the engine is told to keep `cGodFortifyTowersPerBase` towers per base
+  instead of its own 2-3 (`data.mTowerAmountPerTCBase`, read by the engine's `towerManager`).
+  This is the direct answer to "focus on towers": upgrades were already immediate, but the
+  count was the engine's.
+- **assist** — an ally base is being overrun and our own bases are quiet.
+
+**Fall back to the strongest base.** `godFallbackMonitor` runs in every stance, not only team
+games: a 1v1 army losing a fight in the open should fall back too. When the enemy on a base
+outguns our army there (`cGodFallbackRatioPercent`), it recalls any attack still walking out
+(`retreatArmies`) and parks the army on our most defensible base — scored by towers, Town
+Center, Fortress and houses (`godBaseDefenceScore`). Fighting under those is worth giving up
+ground for. The plan outranks the engine's primary defend plan so the units move across. It
+releases after `cGodFallbackHoldSeconds`, or once the enemy has dropped back
+(`cGodFallbackReleasePercent`), and while it is active the engine cannot attack or raid.
+
+**Help an ally.** `godAssistMonitor` sends a capped share (`cGodAssistMaxSharePercent`) of the
+land army to the ally base that most needs it — preferring the ally closest to being wiped
+out, then the base where the enemy's edge is biggest. Only ally bases within
+`cGodAssistMaxDistance` are considered, so the army is not sent across the map. Our own bases
+come first: a fortify or a fallback at home cancels the assist immediately. Losing an ally
+leaves us facing all the enemies alone, which is how the last team game ended.
+
+**Hold the choke.** `godChokeMonitor` stations the army, while fortifying, on the narrowest
+ground between us and the enemy pressing us, so the fight happens at the choke instead of
+inside the economy. The engine exposes no "choke" concept, so `godFindChoke()` reads the area
+graph the map is built from: it walks the land area path from our main base to the enemy's
+and takes the area much smaller than the rest of the path (`cGodChokeMaxTilesPercent`), on our
+half of the map. When the map has no clear narrow ground — or the path is impassable — it
+falls back to a point on the straight line to the enemy. A fallback always wins the army back.
+
+**Towers on the threatened side.** The engine's `towerManager` places towers on a random ring
+around the Town Center, so the approach the enemy uses is often left open.
+`godFrontTowerMonitor` finds the enemy's centroid at the worst-hit base and builds one tower
+between the base and that direction (`godBuildTowerAt`).
+
 ## Telemetry
 
 `godTelemetryMonitor` emits one line every 30s:
@@ -194,9 +266,12 @@ not judged on an enemy count at all: it keeps going while the enemy is further t
 [GBOT] t=… age=… vills=… pop=cur/cap army=… food=… wood=… gold=… enemyAge=… enemyTitan=0|1 state=hold|push underAttack=0|1 enemies=… allies=… stance=normal|fortify|assist threat=… threatPlayers=… fallback=0|1 assist=<player-id>|-1
 ```
 
-`state` is the stance — `push` while the army is committed to a decisive push, `hold`
-otherwise. Being under attack is a separate field because the stance does not change when a
-base is poked: the army stays in the field, and folding the two together would hide it.
+`state` is the push stance — `push` while the army is committed to a decisive push, `hold`
+otherwise. Being under attack is a separate field because the push stance does not change
+when a base is poked: the army stays in the field, and folding the two together would hide
+it. `stance` is the team-game stance (`normal`/`fortify`/`assist`), `threat` and
+`threatPlayers` are the enemy power on our bases and how many players it belongs to,
+`fallback` is set while the army is falling back, and `assist` names the ally being helped.
 
 It lands in the per-player AI log, `temp/Logs/MythRetoldAIOutputPlayer<N>.txt` (UTF-16).
 `scripts/parse_ai_log.py` turns it into a per-run summary. This is the feedback loop that
@@ -227,6 +302,27 @@ change was meant to do are summarised in [`god-bot-record.md`](god-bot-record.md
 | `cGodCavRaidMinCavalry` | Cavalry needed before the gold raid will go |
 | `cGodCavRaidMineRadius` | How close a miner has to be to count as working a mine |
 | `cGodCavRaidRetreatRadius` | How close the enemy has to get to call the cavalry raid home |
+| `cGodThreatMinPower` | Army power on a base that counts as an enemy pressing it |
+| `cGodThreatExtraRadius` | Margin beyond a base's own radius for counting enemies on it |
+| `cGodFortifyEnemyPlayers` | Enemy players on our bases that trigger fortify |
+| `cGodFortifyThreatPercent` | Enemy-to-us power on our bases that also triggers fortify |
+| `cGodFortifyQuietSeconds` | How long the bases must be quiet before fortify ends |
+| `cGodFortifyTowersPerBase` | Towers per TC base while fortified |
+| `cGodFallbackRatioPercent` | Enemy-to-us power on a base that triggers a fallback |
+| `cGodFallbackReleasePercent` | Enemy-to-us power that releases the fallback |
+| `cGodFallbackHoldSeconds` | How long a fallback lasts before it is released |
+| `cGodScoreTower` / `cGodScoreTownCenter` / `cGodScoreFortress` / `cGodScoreHouse` | Weights scoring how defensible a base is |
+| `cGodFallbackPriority` | Priority of the fallback plan (engine's primary defend is 10) |
+| `cGodAssistRatioPercent` | Enemy-to-ally power on an ally base that needs help |
+| `cGodAssistMinEnemyPower` | Minimum enemy power for an ally base to need help |
+| `cGodAssistMaxSharePercent` | Most of our land army sent to help an ally |
+| `cGodAssistMinUnits` | Fewest units worth sending to an ally |
+| `cGodAssistMaxDistance` | Furthest ally base we will walk to help |
+| `cGodAssistQuietSeconds` | How long an ally base must be safe before we come home |
+| `cGodAssistPriority` | Priority of the assist plan |
+| `cGodFrontTowerDistance` | How far out from the base centre the front tower goes |
+| `cGodChokeMinDistance` / `cGodChokeMaxDistance` | Range from our main base where a choke is looked for |
+| `cGodChokeMaxTilesPercent` | How much narrower than the path average an area must be to count as a choke |
 
 ## Caveats
 
@@ -240,3 +336,9 @@ change was meant to do are summarised in [`god-bot-record.md`](god-bot-record.md
   Secrets of the Titans when the game offers it and the favour is banked. The log line names
   the bank as it fires, so a run that never reaches a Titan will show which of the two held
   it back.
+- **Choke detection is a heuristic.** The engine has no "choke" concept, so `godFindChoke`
+  infers one from the area graph: the narrowest area on the path to the enemy. On an open map
+  it falls back to a point on the straight line, which is not really a choke. Judged from its
+  own log lines.
+- **The team-game thresholds are a first pass.** `cGodFortify*`, `cGodFallback*`, `cGodAssist*`
+  and `cGodChoke*` are starting points, tuned from team-game telemetry like the 1v1 numbers.

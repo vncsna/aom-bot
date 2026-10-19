@@ -28,6 +28,13 @@ That is three matches for a general read of the bot. Add another only when a cha
 a branch those three cannot: a naval map for the naval-cleanup branch, a specific opponent,
 or another major god for the minor-god picks.
 
+Team games are their own coverage, because the stances only leave `normal` there:
+
+- **A 2v2:** exercises the assist stance — an ally base under pressure, and our own quiet.
+- **A 3v3 on jotunheim** (the map of the last team-game loss): exercises fortify, the
+  fallback and the choke. Read `stance=`, `threatPlayers=`, `fallback=` and `assist=` from the
+  telemetry to see which fired.
+
 Keep it small:
 
 - Run the baseline on **every** change; re-run a coverage match only when you change what it
@@ -52,6 +59,13 @@ Keep it small:
 
 | Date | Commit | Change | Expected effect | Observed |
 |---|---|---|---|---|
+| 2026-10-19 | `96368b4` | Count the live enemies and allies and log the game shape (`enemies=`, `allies=`, `stance=`) | A team game is distinguishable from a 1v1 in the telemetry, and the 1v1 baseline is unchanged | — |
+| 2026-10-19 | `0ba0408` | Read enemy power on every Town Center base, split by player (`threat=`, `threatPlayers=`) | "Three raids from three players" reads as three players on our bases, not one global flag | — |
+| 2026-10-19 | `1ab1d3f` | A fortify stance: no raids, no push, no Wonder/Titan, and `cGodFortifyTowersPerBase` towers per base while two or more players press us | The army stops dying in the open and the tower count rises above the engine's 2-3 | — |
+| 2026-10-19 | `520c992` | Fall back to our most defensible base when the enemy on a base outguns the army there; runs in every stance | A losing fight moves under the towers instead of dying in the open | — |
+| 2026-10-19 | `b9bfc78` | Assist an ally whose base is being overrun, with a capped share of the army, while our own bases are quiet | An ally is kept alive instead of leaving us facing all the enemies alone | — |
+| 2026-10-19 | `07290ea` | Build a tower toward the enemy's centroid at the worst-hit base while fortifying | The threatened approach is covered, not just a random ring around the TC | — |
+| 2026-10-19 | `b0072d2` | Hold the choke between us and the attacking enemy while fortifying | The fight happens on narrow ground instead of inside the economy | — |
 | 2026-10-19 | `7cf3eaa` | A Mythic stalemate buys Secrets of the Titans from the bank, and the Wonder waits until the first Titan is out | The Titan arrives on the stalemate clock instead of whenever the engine's surplus check passes, and the army keeps the resources until then | The trigger works: it fired at 34:26, 360s after reaching Mythic at 28:26. But no Titan came out — `titans=0` for the whole match, with a 2–6k wood bank sitting unspent for the 18 minutes that followed. The bot's own log has no line for the purchase, so the failure is past the stalemate clock (the Gate or the research never completed) |
 | 2026-10-19 | `83c9130` | The retreat monitor leaves the engine's own Titan plans alone | The Titan is not recalled every ten seconds, so it reaches a base instead of standing idle | Not exercised — the bot never got a Titan of its own out (see the row above). Every Titan-driven retreat in this run was the bot pulling back from the enemy's Titan (37:06, 40:49, 41:19, 42:20) |
 | 2026-10-18 | `514db6f` | A retreat regroups on the interval of the state the bot is in, not always the slow one | A retreat during a push re-commits on the fast interval, instead of sitting idle at pop cap for a whole slow interval | — |
