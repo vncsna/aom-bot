@@ -64,7 +64,7 @@ becomes a debugger breakpoint that freezes the bot — see the AI Debugger Confi
 
 | Piece | Where | Job |
 |---|---|---|
-| Strategy | `godBotStrategy()` | Base policy: flags, naval, attack cadence and gate, push state |
+| Strategy | `godBotStrategy()` | Base policy: flags, naval, attack cadence and gate, push state, stalemate Titan |
 | `godNavalCleanupMonitor` | 30s | Scrap warships on non-naval maps |
 | `godVillageMonitor` | 20s | One Temple + one military building per village |
 | `godTowerUpgradeMonitor` | 10s | Research tower upgrades as early as possible |
@@ -100,11 +100,27 @@ variants, publishes the plan through `gTowerOffensiveResearchPlanID`, and reuses
 `resetOffensiveTowerResearchPlan` handler so the stock monitor defers instead of stacking a
 second plan.
 
-**No Wonder or Titan Gate under pressure.** While `gDefensivelyOverrun` is set, the Wonder
-flag is cleared and any Wonder build plan cancelled; an uncommitted Titan Gate is postponed.
-Resources fall back to the normal economy and military building rules, which is what we want
-mid-defence. A gate already under construction is left alone so the investment is not
-wasted, and the bot re-arms it once the attack is over.
+**A Titan breaks a stalemate.** Once both sides have sat in Mythic for
+`cGodStalemateSeconds` with no age lead, neither side is closing the game: the armies trade
+at the pop cap and the bank piles up. The bot then goes for a Titan, the one thing that ends
+a game attrition cannot. The order is fixed by what the game allows — research
+`cTechSecretsOfTheTitans` for the first Titan Gate, and only build the Wonder *after* the
+first Titan is out, because a Wonder is what unlocks more Titans (`titanGateRebuyMonitor`,
+and re-research once the Wonder Age rules are on).
+
+**The Titan is bought from the bank.** The engine's own `secretsOfTheTitansMonitor` waits
+for a surplus its needs bookkeeping reports, which in practice is long after the bank is
+already full — the 19 Oct match held its Titan back to 31:00 with 30k banked. The bot reads
+the bank directly instead: `godResearchTitanTech` starts the research as soon as the bank
+covers the tech plus `cGodTitanReservePercent` on top, so the army keeps training. A tech
+uses no builders and no army, so the Titan costs the army nothing while it is bought.
+
+**No Wonder or Titan Gate under pressure.** While `gDefensivelyOverrun` is set, any Wonder
+build plan is cancelled and an uncommitted Titan Gate is postponed. The stalemate flag stays
+set, so the project resumes once the attack is over; a gate already under construction is
+left alone so the investment is not wasted. `cStrategyFlagBuildWonder` is off until the
+first Titan is out, so a Wonder can never jump the queue ahead of the Titan it is meant to
+extend.
 
 ### Navy
 
@@ -194,6 +210,10 @@ change was meant to do are summarised in [`god-bot-record.md`](god-bot-record.md
 |---|---|
 | `cGodCadenceMultiplier` | Extra slowdown on top of Conqueror's attack interval |
 | `cGodMaxVillagerPop` | Villager count the economy targets |
+| `cGodTitanFleeRadius` | How close an enemy Titan has to be to call an attack off |
+| `cGodTitanHuntArmyPop` | Military pop needed to take an enemy Titan on |
+| `cGodStalemateSeconds` | How long we must have sat in Mythic before going for a Titan |
+| `cGodTitanReservePercent` | Extra share of the Titan tech's cost the bank must hold before it is bought |
 | `cGodPushArmyPop` | Military pop required before we commit to a decisive push |
 | `cGodPushInterval` | Seconds between attacks while pushing |
 | `cGodPushAdvantagePercent` | How much bigger our army must be than the enemy's to push |
@@ -216,3 +236,7 @@ change was meant to do are summarised in [`god-bot-record.md`](god-bot-record.md
   measured results; revisit once telemetry shows which games are lost and why.
 - **The tuning numbers are starting points.** Retreat, raid and push thresholds are the
   first things to adjust after a game.
+- **The Titan depends on the tech and on favour.** `godResearchTitanTech` can only buy
+  Secrets of the Titans when the game offers it and the favour is banked. The log line names
+  the bank as it fires, so a run that never reaches a Titan will show which of the two held
+  it back.

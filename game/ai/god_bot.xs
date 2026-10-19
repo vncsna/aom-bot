@@ -48,6 +48,16 @@ const float cGodCavRaidRetreatRadius = 20.0;
 const float cGodTitanFleeRadius = 45.0;
 const int cGodTitanHuntArmyPop = 60;
 
+// A Mythic game that has gone on this long with no age lead is a stalemate: the
+// armies trade at the pop cap and the bank piles up. A Titan breaks it, so this is
+// when the bot starts buying one.
+const int cGodStalemateSeconds = 360;
+
+// The Titan is paid from the bank, not from the engine's needs bookkeeping, which
+// only reports a surplus long after the bank is full. Keep this share of the cost
+// on top of it so the army keeps training.
+const int cGodTitanReservePercent = 50;
+
 // Decisive push: once we are clearly ahead, attack on a fast cadence instead.
 const int cGodPushArmyPop = 40;   // military pop required before we commit
 const int cGodPushInterval = 90;  // seconds between attacks while pushing
@@ -68,6 +78,9 @@ bool gGodNavalMap = false;
 bool gGodPushing = false;
 int gGodLastAge = -1;
 bool gGodHeldTitanGate = false;
+bool gGodStalemate = false;
+int gGodMythicSince = -1;
+bool gGodTitanReached = false;
 int gGodRaidPlanID = -1;
 bool gGodRaidIsCavalry = false;
 
@@ -678,13 +691,104 @@ void godReleaseTitanGate()
 	xsRuleIgnoreIntervalOnce("titanGateConstructionMonitor");
 }
 
-// While we're being pushed, don't start or keep a Wonder, and don't commit to a
-// Titan Gate. Resources fall back to the normal build rules.
+// Latch the stalemate once we have sat in Mythic long enough with the enemy there
+// too. An age lead is a win in progress, and the push is the answer to that.
+void godUpdateStalemate()
+{
+	if (gGodStalemate == true)
+	{
+		return;
+	}
+	if (kbPlayerGetAge(cMyID) < cAge4)
+	{
+		return;
+	}
+	if (gGodMythicSince == -1)
+	{
+		gGodMythicSince = xsGetTime();
+	}
+	int target = aiGetMostHatedPlayerID();
+	if (target == -1 || kbPlayerGetAge(target) < cAge4)
+	{
+		return;
+	}
+	int inMythic = xsGetTime() - gGodMythicSince;
+	if (inMythic < cGodStalemateSeconds)
+	{
+		return;
+	}
+	gGodStalemate = true;
+	aiEcho("[GodBot] Stalemate after " + inMythic + "s in Mythic - going for a Titan.");
+}
+
+// Can the bank pay for this tech with the reserve on top? The army keeps the rest.
+bool godBankCovers(int techID = -1)
+{
+	float[] cost = kbTechGetCost(techID);
+	for (int i = 0; i < cNumberResources; i++)
+	{
+		float needed = (cost[i] * (100 + cGodTitanReservePercent)) / 100.0;
+		if (kbResourceGet(i) < needed)
+		{
+			return false;
+		}
+	}
+	// Favour is billed on its own; the engine checks it separately for the same tech.
+	float neededFavor = kbTechGetCostPerResource(techID, cResourceFavor);
+	return kbResourceGet(cResourceFavor) >= neededFavor;
+}
+
+// The engine researches Secrets of the Titans only on a surplus its needs
+// bookkeeping reports long after the bank is full, which is why a Titan can arrive
+// with tens of thousands banked and nothing else to spend on. Once we are
+// stalemated, buy the tech ourselves: a tech uses no builders and no army, so it
+// costs nothing but spare resources, and the engine builds the Gate from there.
+void godResearchTitanTech()
+{
+	if (gGodStalemate == false || gGodTitanReached == true)
+	{
+		return;
+	}
+	if (godUnderAttack() == true)
+	{
+		return;
+	}
+	if (kbGodPowerGetNumCharges(cProtoPowerTitanGate, cMyID) >= 1)
+	{
+		return; // The Gate is already ours to place.
+	}
+	if (kbTechGetStatus(cTechSecretsOfTheTitans) != cTechStatusObtainable)
+	{
+		return;
+	}
+	if (aiPlanGetIDByTypeAndVariableIntValue(cPlanResearch, cResearchPlanTechID, cTechSecretsOfTheTitans) != -1)
+	{
+		return;
+	}
+	if (godBankCovers(cTechSecretsOfTheTitans) == false)
+	{
+		return;
+	}
+	aiEcho("[GodBot] Researching Secrets of the Titans: food=" + xsFloatToInt(kbResourceGet(cResourceFood))
+		+ " wood=" + xsFloatToInt(kbResourceGet(cResourceWood))
+		+ " gold=" + xsFloatToInt(kbResourceGet(cResourceGold))
+		+ " favor=" + xsFloatToInt(kbResourceGet(cResourceFavor)) + ".");
+	researchSimpleTech(cTechSecretsOfTheTitans, -1, -1, 99);
+}
+
+// The Titan breaks a stalemate, so it is not worth paying for before one. The
+// Wonder comes after the first Titan and only adds more of them. Being pushed
+// cancels a Wonder in progress and postpones the Gate.
 void godManageWonderAndTitanGate(ref StrategyData data)
 {
+	if (gGodTitanReached == false && kbUnitCount(cUnitTypeAbstractTitan, cMyID, cUnitStateAlive) >= 1)
+	{
+		gGodTitanReached = true;
+		aiEcho("[GodBot] First Titan is out - the Wonder is allowed now.");
+	}
 	bool attacked = godUnderAttack();
-	data.setFlag(cStrategyFlagBuildWonder, attacked == false);
-	data.setFlag(cStrategyFlagBuildTitan, attacked == false);
+	data.setFlag(cStrategyFlagBuildTitan, gGodStalemate == true && attacked == false);
+	data.setFlag(cStrategyFlagBuildWonder, gGodTitanReached == true && attacked == false);
 	if (attacked == true)
 	{
 		godCancelBuildPlans(cUnitTypeWonder);
@@ -753,6 +857,8 @@ Strategy godBotStrategy()
 			}
 			godApplyAttackCadence();
 		}
+		godUpdateStalemate();
+		godResearchTitanTech();
 		godManageWonderAndTitanGate(data);
 		// cStrategyFlagCanAttack is the engine's gate on its attackManager, so
 		// holding it here is what makes the cadence ours rather than the engine's.
@@ -1063,6 +1169,8 @@ minInterval 30
 		+ " gold=" + xsFloatToInt(kbResourceGet(cResourceGold))
 		+ " enemyAge=" + enemyAge
 		+ " enemyTitan=" + enemyTitan
+		+ " titans=" + kbUnitCount(cUnitTypeAbstractTitan, cMyID, cUnitStateAlive)
+		+ " wonder=" + kbUnitCount(cUnitTypeWonder, cMyID, cUnitStateAlive)
 		+ " state=" + state
 		+ " underAttack=" + underAttack);
 }
