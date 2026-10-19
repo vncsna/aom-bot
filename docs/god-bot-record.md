@@ -41,6 +41,7 @@ Keep it small:
 
 | Date | Commit | Map | Opponent | Result | Length | Notes |
 |---|---|---|---|---|---|---|
+| 2026-10-19 | `f4ac062` | mirage | chairon / Balanced / Huitzilopochtli | win | ~34:30 | Ra. Push held almost unbroken from 17:30 (one hold at 27:32), but the bank grew past 30k from 23:00 on with army stuck near 140 at the 250 cap. Our Titan attack retreated 15 times (8–23 enemies vs our 1, then the enemy Titan at 33:00). Enemy reached Mythic at 18:00, no age deficit |
 | 2026-10-18 | `315a62f`–`c496020` | mirage | chairon / Conqueror / Odin | win | 26:31 | Enemy resigned with 7 power left, under attack in its bases from 10:02 to the end. Push/slow flipped 5 times, not 15. The gate never reopened after the 19:41 retreat, so the last 7 minutes were passive while the bank grew past 9k |
 | 2026-10-18 | `a4e1d73` | mirage | chairon / Conqueror / Shennong | win | 26:31 | Enemy resigned. First run with the cavalry gold raid (`e747bea`). No raid landed; push/slow flapped 15 times in 20:52–23:04; the Wonder never started — blocked on gold excess, then on favour |
 | 2026-10-18 | `688a149` | mirage | chairon / Defender / Demeter | win | 21:31 | Ground the enemy down base by base, but all four raids aborted and the push cadence flapped until 14:54 |
