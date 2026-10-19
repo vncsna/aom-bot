@@ -64,7 +64,7 @@ becomes a debugger breakpoint that freezes the bot — see the AI Debugger Confi
 
 | Piece | Where | Job |
 |---|---|---|
-| Strategy | `godBotStrategy()` | Base policy: flags, naval, attack cadence, push state |
+| Strategy | `godBotStrategy()` | Base policy: flags, naval, attack cadence and gate, push state |
 | `godNavalCleanupMonitor` | 30s | Scrap warships on non-naval maps |
 | `godVillageMonitor` | 20s | One Temple + one military building per village |
 | `godTowerUpgradeMonitor` | 10s | Research tower upgrades as early as possible |
@@ -122,9 +122,13 @@ about warships only.
 
 ### Offence
 
-**A slow rhythm.** Conqueror's attack interval (by difficulty) is multiplied by
-`cGodCadenceMultiplier` and re-applied on every age change. The bot should be threatening,
-not frantic.
+**A slow rhythm the bot holds itself.** Conqueror's attack interval (by difficulty) is
+multiplied by `cGodCadenceMultiplier` and re-applied on every age change. Setting the interval
+is not enough on its own: the engine's `attackManager` randomises it on every launch, and on
+Hard and above it skips the time check altogether once the army is large or the resources are
+in excess — and the personality the mod generates is not on the engine's "attack less
+frequently" list. So the bot drives `cStrategyFlagCanAttack` itself and opens it only once its
+own interval has elapsed. The engine still decides what to attack and how; the rhythm is ours.
 
 **A decisive push once the bot knows it is ahead.** `godShouldPush()` fires when we are in
 Heroic or later, have a real army (`cGodPushArmyPop`), and either we are an age ahead or we
@@ -142,11 +146,12 @@ regroups rather than re-committing; a failed raid is simply called off.
 
 **Never feed a Titan.** A Titan is one unit, so the outnumbered check never sees it, and it
 kills an army faster than the loss window notices. `godTitanNear` calls off any attack
-standing within `cGodTitanFleeRadius` of one, and `godApplyTitanPolicy` holds attacks and
-raids entirely while an enemy Titan is alive and we cannot answer it — no Titan of our own
-and less than `cGodTitanHuntArmyPop` military pop. The army waits at home with the towers and
-our own gate instead of walking into it; once the army is big enough, or our own Titan is
-out, attacks resume on their normal rhythm.
+standing within `cGodTitanFleeRadius` of one, and `godTitanAllowsAttack()` vetoes the attack
+gate — and the raids, which read it directly rather than the strategy flag — while an enemy
+Titan is alive and we cannot answer it: no Titan of our own and less than
+`cGodTitanHuntArmyPop` military pop. The army waits at home with the towers and our own gate
+instead of walking into it; once the army is big enough, or our own Titan is out, attacks
+resume on their normal rhythm.
 
 **Raid what the enemy left open.** When we cannot commit to a real attack and have spare
 army, `godRaidMonitor` sends a small group at the enemy drop site with the fewest troops on

@@ -532,6 +532,18 @@ void godApplyAttackCadence()
 	aiEcho("[GodBot] Attack interval set to " + interval + " seconds.");
 }
 
+// The engine's attackManager decides *what* to attack, but not *when*: it
+// randomises the interval on every launch, and on Hard and above it skips the
+// interval altogether once the army is large or the resources are in excess. The
+// personality the mod generates is not on the engine's "attack less frequently"
+// list, so the slow rhythm we set would be ignored in exactly the late game we
+// care about. We hold the gate ourselves and open it only once our own interval
+// has elapsed; the engine then launches whenever it is otherwise ready.
+bool godAttackGateOpen()
+{
+	return gAttackManager.waitedLongEnough();
+}
+
 // Are we clearly ahead enough to commit to a decisive push? Conservative on
 // purpose: we only stop being patient once the game is effectively won.
 bool godShouldPush()
@@ -666,16 +678,14 @@ void godManageWonderAndTitanGate(ref StrategyData data)
 // Feeding an army to a Titan just loses the army. While one is on the field and we
 // cannot answer it — no Titan of our own, no army big enough to kill it — hold the
 // army at home, where the towers and our own gate are, and stop raiding into it.
-void godApplyTitanPolicy(ref StrategyData data)
+bool godTitanAllowsAttack()
 {
 	if (godEnemyTitanID() == -1)
 	{
-		data.setFlag(cStrategyFlagCanAttack, true);
-		return;
+		return true;
 	}
-	bool canKillIt = kbUnitCount(cUnitTypeAbstractTitan, cMyID, cUnitStateAlive) >= 1
+	return kbUnitCount(cUnitTypeAbstractTitan, cMyID, cUnitStateAlive) >= 1
 		|| aiGetCurrentMilitaryPop() >= cGodTitanHuntArmyPop;
-	data.setFlag(cStrategyFlagCanAttack, canKillIt);
 }
 
 //==============================================================================
@@ -726,7 +736,9 @@ Strategy godBotStrategy()
 		}
 		godManageTinyMapHousing(data);
 		godManageWonderAndTitanGate(data);
-		godApplyTitanPolicy(data);
+		// cStrategyFlagCanAttack is the engine's gate on its attackManager, so
+		// holding it here is what makes the cadence ours rather than the engine's.
+		data.setFlag(cStrategyFlagCanAttack, godTitanAllowsAttack() && godAttackGateOpen());
 		return true;
 	};
 
@@ -925,7 +937,9 @@ rule godRaidMonitor
 inactive
 minInterval 90
 {
-	if (checkStrategyFlag(cStrategyFlagCanAttack) == false)
+	// The strategy flag is the engine's attackManager gate, held closed between our
+	// own attacks; a raid reads our willingness to fight instead.
+	if (godTitanAllowsAttack() == false)
 	{
 		return;
 	}
@@ -985,7 +999,9 @@ rule godCavRaidMonitor
 inactive
 minInterval 60
 {
-	if (checkStrategyFlag(cStrategyFlagCanAttack) == false)
+	// The strategy flag is the engine's attackManager gate, held closed between our
+	// own attacks; a raid reads our willingness to fight instead.
+	if (godTitanAllowsAttack() == false)
 	{
 		return;
 	}
