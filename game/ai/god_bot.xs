@@ -118,6 +118,23 @@ const float cGodScoreHouse = 0.5;
 // the army across to the fallback plan.
 const int cGodFallbackPriority = 60;
 
+// An ally base needs help once the enemy on it outguns the ally's own army there by
+// this share, and there is at least this much enemy power to answer.
+const int cGodAssistRatioPercent = 150;
+const float cGodAssistMinEnemyPower = 10.0;
+// Send at most this share of our land army, and only if that is at least this many
+// units. Our own survival comes first, so the base is never stripped bare.
+const int cGodAssistMaxSharePercent = 50;
+const int cGodAssistMinUnits = 5;
+// Do not walk across the map: ally bases further than this from our main base are
+// left to themselves.
+const float cGodAssistMaxDistance = 200.0;
+// Come home once the ally base has been safe this long.
+const int cGodAssistQuietSeconds = 30;
+// Priority for the assist plan: above the engine's primary defend plan (10) and
+// below the fallback (60), so a fallback at home always wins the army back.
+const int cGodAssistPriority = 40;
+
 //==============================================================================
 // State
 //==============================================================================
@@ -142,6 +159,10 @@ int gGodLastThreatTime = -1;
 int gGodFallbackPlanID = -1;
 int gGodFallbackSince = -1;
 int gGodFallbackFromBaseID = -1;
+int gGodAssistPlanID = -1;
+int gGodAssistAllyID = -1;
+int gGodAssistBaseID = -1;
+int gGodAssistQuietSince = -1;
 
 //==============================================================================
 // Helpers
@@ -984,6 +1005,76 @@ bool godTitanAllowsAttack()
 		|| aiGetCurrentMilitaryPop() >= cGodTitanHuntArmyPop;
 }
 
+// The ally base that most needs help, or -1. Prefers the ally closest to being wiped
+// out (fewest Town Center bases left), then the base where the enemy's edge is
+// biggest. Only reads allies while our own bases are quiet, and fills in the ally
+// and base ids the assist plan is built from.
+int godAssistTarget()
+{
+	gGodAssistAllyID = -1;
+	gGodAssistBaseID = -1;
+	if (gGodTeamGame == false || gGodThreatPower >= cGodThreatMinPower)
+	{
+		return -1;
+	}
+	int bestAlly = -1;
+	int bestBase = -1;
+	int bestBases = 0;
+	float bestGap = 0.0;
+	for (int a = 1; a <= cNumberPlayers; a++)
+	{
+		if (a == cMyID || kbPlayerHasLost(a) == true || kbPlayerIsAlly(a) == false)
+		{
+			continue;
+		}
+		int allyBases = 0;
+		int candidate = -1;
+		float candidateGap = 0.0;
+		int numBases = kbBaseGetNumber(a);
+		for (int i = 0; i < numBases; i++)
+		{
+			int baseID = kbBaseGetIDByIndex(a, i);
+			if (kbBaseIsFlagSet(a, baseID, cBaseFlagTownCenter) == false)
+			{
+				continue;
+			}
+			allyBases++;
+			vector loc = kbBaseGetLocation(a, baseID);
+			if (xsVectorLength(loc - kbBaseGetLocation(cMyID, kbBaseGetMainID(cMyID))) > cGodAssistMaxDistance)
+			{
+				continue;
+			}
+			float radius = kbBaseGetDistance(a, baseID) + cGodThreatExtraRadius;
+			float enemy = godPowerNear(cPlayerRelationEnemyNotGaia, loc, radius);
+			if (enemy < cGodAssistMinEnemyPower)
+			{
+				continue;
+			}
+			float allyPower = godPowerNear(a, loc, radius);
+			float gap = enemy - allyPower;
+			if ((enemy * 100.0) > (allyPower * cGodAssistRatioPercent) && gap > candidateGap)
+			{
+				candidate = baseID;
+				candidateGap = gap;
+			}
+		}
+		if (candidate == -1)
+		{
+			continue;
+		}
+		if (bestBase == -1 || allyBases < bestBases || (allyBases == bestBases && candidateGap > bestGap))
+		{
+			bestAlly = a;
+			bestBase = candidate;
+			bestBases = allyBases;
+			bestGap = candidateGap;
+		}
+	}
+	gGodAssistAllyID = bestAlly;
+	gGodAssistBaseID = bestBase;
+	return bestBase;
+}
+
 // Choose the stance for this second. A 1v1 never leaves "normal". A team game
 // fortifies once enough enemies are on our bases, stays fortified through a quiet
 // spell so the stance cannot flicker, and otherwise helps an ally in trouble.
@@ -1008,6 +1099,10 @@ int godPickStance()
 		&& (xsGetTime() - gGodLastThreatTime) < cGodFortifyQuietSeconds)
 	{
 		return cGodStanceFortify;
+	}
+	if (godAssistTarget() != -1)
+	{
+		return cGodStanceAssist;
 	}
 	return cGodStanceNormal;
 }
@@ -1401,6 +1496,87 @@ minInterval 5
 		+ " vs our " + xsFloatToInt(ours) + ".");
 }
 
+// Send part of the army to an ally whose base is being overrun, but only while our
+// own bases are quiet and only a capped share of it. Losing an ally leaves us facing
+// all the enemies alone, so keeping one alive is worth the detour. Our own bases
+// come first: a fortify or a fallback at home cancels the assist immediately.
+rule godAssistMonitor
+inactive
+minInterval 10
+{
+	if (aiPlanGetIsIDValid(gGodAssistPlanID) == true)
+	{
+		bool end = false;
+		if (gGodStance == cGodStanceFortify || aiPlanGetIsIDValid(gGodFallbackPlanID) == true)
+		{
+			end = true; // Our own bases come first.
+		}
+		if (kbPlayerHasLost(gGodAssistAllyID) == true
+			|| kbBaseGetIsIDValid(gGodAssistAllyID, gGodAssistBaseID) == false)
+		{
+			end = true;
+		}
+		if (end == false)
+		{
+			vector loc = kbBaseGetLocation(gGodAssistAllyID, gGodAssistBaseID);
+			float radius = kbBaseGetDistance(gGodAssistAllyID, gGodAssistBaseID) + cGodThreatExtraRadius;
+			float enemy = godPowerNear(cPlayerRelationEnemyNotGaia, loc, radius);
+			float allyPower = godPowerNear(gGodAssistAllyID, loc, radius);
+			if ((enemy * 100.0) <= (allyPower * cGodAssistRatioPercent))
+			{
+				if (gGodAssistQuietSince == -1)
+				{
+					gGodAssistQuietSince = xsGetTime();
+				}
+				if (xsGetTime() - gGodAssistQuietSince >= cGodAssistQuietSeconds)
+				{
+					end = true;
+				}
+			}
+			else
+			{
+				gGodAssistQuietSince = -1;
+			}
+		}
+		if (end == true)
+		{
+			aiEcho("[GodBot] Assist over - the army returns home.");
+			aiPlanDestroy(gGodAssistPlanID);
+			gGodAssistPlanID = -1;
+			gGodAssistAllyID = -1;
+			gGodAssistBaseID = -1;
+			gGodAssistQuietSince = -1;
+		}
+		return;
+	}
+	if (gGodStance != cGodStanceAssist)
+	{
+		return;
+	}
+	if (godAssistTarget() == -1)
+	{
+		return;
+	}
+	int share = (kbUnitCount(cUnitTypeLogicalTypeLandMilitary, cMyID, cUnitStateAlive) * cGodAssistMaxSharePercent) / 100;
+	if (share < cGodAssistMinUnits)
+	{
+		return;
+	}
+	gGodAssistPlanID = createDefendPlanForPoint("GodBot Assist",
+		kbBaseGetLocation(gGodAssistAllyID, gGodAssistBaseID), cGodAssistPriority);
+	if (gGodAssistPlanID == -1)
+	{
+		return;
+	}
+	aiPlanAddUnitType(gGodAssistPlanID, cUnitTypeLogicalTypeLandMilitary, cGodAssistMinUnits, share, share);
+	aiPlanSetFlag(gGodAssistPlanID, cPlanFlagCantBeStolenFrom, true);
+	aiPlanSetVariableFloat(gGodAssistPlanID, cDefendPlanEngageRange, 0,
+		kbBaseGetDistance(gGodAssistAllyID, gGodAssistBaseID) + cGodThreatExtraRadius);
+	gGodAssistQuietSince = -1;
+	aiEcho("[GodBot] Assisting ally " + gGodAssistAllyID + " at base " + gGodAssistBaseID
+		+ ", sending up to " + share + " units.");
+}
+
 // When we can't commit to a full attack, send a small group to hit the enemy
 // economy instead (drop sites first, then villagers).
 rule godRaidMonitor
@@ -1529,6 +1705,11 @@ minInterval 30
 	{
 		fallback = 1;
 	}
+	int assist = -1;
+	if (aiPlanGetIsIDValid(gGodAssistPlanID) == true)
+	{
+		assist = gGodAssistAllyID;
+	}
 	aiEcho("[GBOT] t=" + xsGetTime()
 		+ " age=" + kbPlayerGetAge(cMyID)
 		+ " vills=" + kbUnitCount(cUnitTypeAbstractVillager, cMyID, cUnitStateAlive)
@@ -1548,7 +1729,8 @@ minInterval 30
 		+ " stance=" + godStanceName(gGodStance)
 		+ " threat=" + xsFloatToInt(gGodThreatPower)
 		+ " threatPlayers=" + gGodThreatPlayers
-		+ " fallback=" + fallback);
+		+ " fallback=" + fallback
+		+ " assist=" + assist);
 }
 
 // Player counts change as players are eliminated, so refresh them on a timer rather
@@ -1591,6 +1773,7 @@ void postInit()
 	xsEnableRule("godTowerUpgradeMonitor");
 	xsEnableRule("godRetreatMonitor");
 	xsEnableRule("godFallbackMonitor");
+	xsEnableRule("godAssistMonitor");
 	xsEnableRule("godRaidMonitor");
 	xsEnableRule("godCavRaidMonitor");
 	xsEnableRule("godTelemetryMonitor");
