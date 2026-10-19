@@ -191,7 +191,7 @@ not judged on an enemy count at all: it keeps going while the enemy is further t
 `godTelemetryMonitor` emits one line every 30s:
 
 ```
-[GBOT] t=… age=… vills=… pop=cur/cap army=… food=… wood=… gold=… enemyAge=… enemyTitan=0|1 state=hold|push underAttack=0|1
+[GBOT] t=… age=… vills=… pop=cur/cap army=… food=… wood=… gold=… enemyAge=… enemyTitan=0|1 state=hold|push underAttack=0|1 enemies=… allies=… stance=normal|fortify|assist
 ```
 
 `state` is the stance — `push` while the army is committed to a decisive push, `hold`

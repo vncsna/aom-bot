@@ -72,6 +72,18 @@ const int cGodPushHoldPercent = 110;
 const int cGodMaxVillagerPop = 90;
 
 //==============================================================================
+// Team games
+//==============================================================================
+// A 1v1 is one enemy to attack and one front to hold. A team game can put two or
+// more enemies on our bases at once, or leave an ally about to be wiped out, and
+// the 1v1 posture has no answer for either. The bot reads the game each second and
+// picks one stance. A stance only ever leaves "normal" in a team game, so a 1v1
+// runs the original code paths unchanged.
+const int cGodStanceNormal = 0;
+const int cGodStanceFortify = 1;
+const int cGodStanceAssist = 2;
+
+//==============================================================================
 // State
 //==============================================================================
 bool gGodNavalMap = false;
@@ -83,6 +95,10 @@ int gGodMythicSince = -1;
 bool gGodTitanReached = false;
 int gGodRaidPlanID = -1;
 bool gGodRaidIsCavalry = false;
+int gGodEnemyCount = 0;
+int gGodAllyCount = 0;
+bool gGodTeamGame = false;
+int gGodStance = cGodStanceNormal;
 
 //==============================================================================
 // Helpers
@@ -105,6 +121,44 @@ bool godIsNavalMap()
 bool godUnderAttack()
 {
 	return gDefensivelyOverrun;
+}
+
+// Count the players still in the game. Gaia is player 0, so starting at 1 skips it;
+// this is the loop the base game's chats.xs uses to total team scores. Players drop
+// out as they are eliminated, so the caller refreshes this rather than caching it.
+void godCountPlayers()
+{
+	gGodEnemyCount = 0;
+	gGodAllyCount = 0;
+	for (int i = 1; i <= cNumberPlayers; i++)
+	{
+		if (i == cMyID || kbPlayerHasLost(i) == true)
+		{
+			continue;
+		}
+		if (kbPlayerIsAlly(i) == true)
+		{
+			gGodAllyCount++;
+		}
+		else
+		{
+			gGodEnemyCount++;
+		}
+	}
+	gGodTeamGame = gGodEnemyCount >= 2 || gGodAllyCount >= 1;
+}
+
+string godStanceName(int stance = cGodStanceNormal)
+{
+	if (stance == cGodStanceFortify)
+	{
+		return "fortify";
+	}
+	if (stance == cGodStanceAssist)
+	{
+		return "assist";
+	}
+	return "normal";
 }
 
 // Destroy every build plan for a given building type.
@@ -824,6 +878,8 @@ Strategy godBotStrategy()
 	strategy.mInitFunc = [](ref StrategyData data) -> bool
 	{
 		aiEcho("=== [GodBot] strategy init ===");
+		godCountPlayers();
+		aiEcho("[GodBot] Game shape: " + gGodEnemyCount + " enemies, " + gGodAllyCount + " allies.");
 		data.enableAllStrategyFlags();
 		godApplyNavalPolicy(data);
 		godApplyAttackCadence();
@@ -1172,7 +1228,19 @@ minInterval 30
 		+ " titans=" + kbUnitCount(cUnitTypeAbstractTitan, cMyID, cUnitStateAlive)
 		+ " wonder=" + kbUnitCount(cUnitTypeWonder, cMyID, cUnitStateAlive)
 		+ " state=" + state
-		+ " underAttack=" + underAttack);
+		+ " underAttack=" + underAttack
+		+ " enemies=" + gGodEnemyCount
+		+ " allies=" + gGodAllyCount
+		+ " stance=" + godStanceName(gGodStance));
+}
+
+// Player counts change as players are eliminated, so refresh them on a timer rather
+// than only at init.
+rule godPlayersMonitor
+inactive
+minInterval 30
+{
+	godCountPlayers();
 }
 
 //==============================================================================
@@ -1201,6 +1269,7 @@ void postInit()
 {
 	aiEcho("=== [GodBot] postInit() - activating monitors ===");
 	xsEnableRule("godNavalCleanupMonitor");
+	xsEnableRule("godPlayersMonitor");
 	xsEnableRule("godVillageMonitor");
 	xsEnableRule("godTowerUpgradeMonitor");
 	xsEnableRule("godRetreatMonitor");

@@ -18,7 +18,7 @@ import sys
 from pathlib import Path
 
 MARKER = "[GBOT]"
-COLUMNS = ["t", "age", "vills", "pop", "army", "food", "wood", "gold", "enemyAge", "enemyTitan", "titans", "wonder", "state", "underAttack"]
+COLUMNS = ["t", "age", "vills", "pop", "army", "food", "wood", "gold", "enemyAge", "enemyTitan", "titans", "wonder", "state", "underAttack", "enemies", "allies", "stance"]
 
 
 def read_lines(path):
