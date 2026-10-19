@@ -141,6 +141,16 @@ const int cGodAssistPriority = 40;
 const float cGodFrontTowerDistance = 20.0;
 const int cGodFrontTowerPriority = 55;
 
+// A choke is looked for between these distances from our main base along the path to
+// the enemy, so the army waits on our own half of the map and can be reinforced.
+const float cGodChokeMinDistance = 30.0;
+const float cGodChokeMaxDistance = 120.0;
+// An area only counts as a choke if it is this much narrower than the average area
+// along the path; otherwise the map has no real choke and the fallback is used.
+const int cGodChokeMaxTilesPercent = 50;
+const int cGodChokePriority = 30;
+const float cGodChokeEngageRange = 25.0;
+
 //==============================================================================
 // State
 //==============================================================================
@@ -170,6 +180,10 @@ int gGodAssistAllyID = -1;
 int gGodAssistBaseID = -1;
 int gGodAssistQuietSince = -1;
 int gGodFrontTowerPlanID = -1;
+vector gGodChokePoint = cInvalidVector;
+int gGodChokeEnemyID = -1;
+int gGodChokePlanID = -1;
+int gGodChokeBaseCount = -1;
 
 //==============================================================================
 // Helpers
@@ -1188,6 +1202,97 @@ int godBuildTowerAt(vector location = cInvalidVector, int baseID = -1)
 	return planID;
 }
 
+// The open-map fallback for a choke: a point on our half of the straight line to
+// the enemy, used when the map has no real narrow ground.
+vector godChokeFallback(vector from = cInvalidVector, vector to = cInvalidVector, float limit = 0.0)
+{
+	vector spot = from + xsVectorNormalize(to - from) * limit;
+	if (kbGetIsLocationOnMap(spot) == false)
+	{
+		return cInvalidVector;
+	}
+	return spot;
+}
+
+// The narrowest ground on the path from an enemy's base to our main base. The engine
+// exposes no "choke" concept, so this reads the area graph the map is built from: a
+// choke is an area on the path that is much smaller (fewer tiles) than the rest.
+// Falls back to a midpoint when the path is impassable or has no clear narrow spot.
+vector godFindChoke(int enemyID = -1)
+{
+	if (enemyID == -1)
+	{
+		return cInvalidVector;
+	}
+	int myMain = kbBaseGetMainID(cMyID);
+	int enemyMain = kbBaseGetMainID(enemyID);
+	if (kbBaseGetIsIDValid(cMyID, myMain) == false || kbBaseGetIsIDValid(enemyID, enemyMain) == false)
+	{
+		return cInvalidVector;
+	}
+	vector from = kbBaseGetLocation(cMyID, myMain);
+	vector to = kbBaseGetLocation(enemyID, enemyMain);
+	float span = xsVectorLength(to - from);
+	if (span <= 0.0)
+	{
+		return cInvalidVector;
+	}
+	// Keep the choke on our half of the map, but never past the enemy.
+	float limit = cGodChokeMaxDistance;
+	if (span * 0.5 < limit)
+	{
+		limit = span * 0.5;
+	}
+	int pathID = kbPathCreate("GodBot choke");
+	if (pathID == -1)
+	{
+		return godChokeFallback(from, to, limit);
+	}
+	if (kbPathCreateAreaPath(pathID, kbAreaGetIDByPosition(from), kbAreaGetIDByPosition(to), cPassabilityLand) == false)
+	{
+		kbPathDestroy(pathID);
+		return godChokeFallback(from, to, limit);
+	}
+	int numWaypoints = kbPathGetNumberWaypoints(pathID);
+	float tileTotal = 0.0;
+	int tileCount = 0;
+	int bestArea = -1;
+	int bestTiles = 0;
+	for (int i = 0; i < numWaypoints; i++)
+	{
+		vector wp = kbPathGetWaypoint(pathID, i);
+		float travelled = xsVectorLength(wp - from);
+		if (travelled < cGodChokeMinDistance || travelled > limit)
+		{
+			continue;
+		}
+		int areaID = kbAreaGetIDByPosition(wp);
+		if (kbAreaGetIsIDValid(areaID) == false)
+		{
+			continue;
+		}
+		int tiles = kbAreaGetNumberTiles(areaID);
+		tileTotal = tileTotal + tiles;
+		tileCount++;
+		if (bestArea == -1 || tiles < bestTiles)
+		{
+			bestArea = areaID;
+			bestTiles = tiles;
+		}
+	}
+	kbPathDestroy(pathID);
+	if (bestArea == -1 || tileCount == 0)
+	{
+		return godChokeFallback(from, to, limit);
+	}
+	float average = tileTotal / xsIntToFloat(tileCount);
+	if ((bestTiles * 100.0) > (average * cGodChokeMaxTilesPercent))
+	{
+		return godChokeFallback(from, to, limit);
+	}
+	return kbAreaGetCenter(bestArea);
+}
+
 //==============================================================================
 // Strategy
 //==============================================================================
@@ -1663,6 +1768,79 @@ minInterval 30
 	}
 }
 
+// While fortifying, station the army on the choke between us and the enemy that is
+// pressing us, so the fight happens on narrow ground instead of inside the economy.
+// A fallback always wins the army back, and the plan is dropped the moment we stop
+// fortifying.
+rule godChokeMonitor
+inactive
+minInterval 15
+{
+	if (gGodStance != cGodStanceFortify || aiPlanGetIsIDValid(gGodFallbackPlanID) == true)
+	{
+		if (aiPlanGetIsIDValid(gGodChokePlanID) == true)
+		{
+			aiPlanDestroy(gGodChokePlanID);
+			gGodChokePlanID = -1;
+		}
+		return;
+	}
+	// Block the player pressing our worst-hit base.
+	int enemy = -1;
+	int base = gGodThreatBaseID;
+	if (base != -1)
+	{
+		float worst = 0.0;
+		for (int i = 1; i <= cNumberPlayers; i++)
+		{
+			if (i == cMyID || kbPlayerHasLost(i) == true || kbPlayerIsAlly(i) == true)
+			{
+				continue;
+			}
+			float power = godPowerNear(i, kbBaseGetLocation(cMyID, base), godBaseThreatRadius(base));
+			if (power > worst)
+			{
+				worst = power;
+				enemy = i;
+			}
+		}
+	}
+	if (enemy == -1)
+	{
+		return;
+	}
+	int baseCount = kbBaseGetNumber(cMyID);
+	bool needChoke = (enemy != gGodChokeEnemyID || baseCount != gGodChokeBaseCount
+		|| gGodChokePoint == cInvalidVector);
+	if (needChoke == true)
+	{
+		gGodChokePoint = godFindChoke(enemy);
+		gGodChokeEnemyID = enemy;
+		gGodChokeBaseCount = baseCount;
+		if (aiPlanGetIsIDValid(gGodChokePlanID) == true)
+		{
+			aiPlanDestroy(gGodChokePlanID);
+			gGodChokePlanID = -1;
+		}
+	}
+	if (gGodChokePoint == cInvalidVector)
+	{
+		return;
+	}
+	if (aiPlanGetIsIDValid(gGodChokePlanID) == false)
+	{
+		gGodChokePlanID = createDefendPlanForPoint("GodBot Choke", gGodChokePoint, cGodChokePriority);
+		if (gGodChokePlanID == -1)
+		{
+			return;
+		}
+		aiPlanAddUnitType(gGodChokePlanID, cUnitTypeLogicalTypeLandMilitary, 0, 0, 200);
+		aiPlanSetFlag(gGodChokePlanID, cPlanFlagCantBeStolenFrom, true);
+		aiPlanSetVariableFloat(gGodChokePlanID, cDefendPlanEngageRange, 0, cGodChokeEngageRange);
+		aiEcho("[GodBot] Holding the choke at " + gGodChokePoint + " against player " + enemy + ".");
+	}
+}
+
 // When we can't commit to a full attack, send a small group to hit the enemy
 // economy instead (drop sites first, then villagers).
 rule godRaidMonitor
@@ -1861,6 +2039,7 @@ void postInit()
 	xsEnableRule("godFallbackMonitor");
 	xsEnableRule("godAssistMonitor");
 	xsEnableRule("godFrontTowerMonitor");
+	xsEnableRule("godChokeMonitor");
 	xsEnableRule("godRaidMonitor");
 	xsEnableRule("godCavRaidMonitor");
 	xsEnableRule("godTelemetryMonitor");
