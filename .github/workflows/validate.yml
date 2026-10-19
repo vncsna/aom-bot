@@ -12,5 +12,7 @@ jobs:
       - uses: actions/checkout@v4
       - run: python3 scripts/validate_personalities.py
       - run: python3 scripts/check_xs.py --no-game
+      - run: python3 scripts/check_budget.py
       - run: python3 scripts/tests/test_check_xs.py
+      - run: python3 scripts/tests/test_check_budget.py
       - run: python3 scripts/tests/test_archive_run.py
