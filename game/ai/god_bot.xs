@@ -289,6 +289,12 @@ bool godTitanNear(vector location = cInvalidVector)
 		cUnitStateAlive, location, cGodTitanFleeRadius) > 0;
 }
 
+// The patient rhythm: Conqueror's attack interval by difficulty, slowed further.
+int godSlowInterval()
+{
+	return xsFloatToInt(selectByDifficultyFloat(20, 15, 9, 7, 5, 5) * 60.0 * cGodCadenceMultiplier);
+}
+
 // Is this attack bleeding out, outnumbered, or standing in front of a Titan?
 bool godAttackIsLosing(int planID = -1, int ourCount = 0, int ourPop = 0, int samplePop = 0)
 {
@@ -349,7 +355,10 @@ void godRetreatPlan(int planID = -1)
 	// shouldn't hold up the main attack, and a cavalry raid runs on its own clock.
 	if (planID != gGodRaidPlanID && planID != gGodCavRaidPlanID)
 	{
+		// Regroup on the slow rhythm, whatever the cadence happens to be right now:
+		// a retreat during a push must still buy a full slow interval.
 		gAttackManager.mLastAttackTime = xsGetTime();
+		gAttackManager.mAttackInterval = godSlowInterval();
 	}
 }
 
@@ -526,17 +535,13 @@ void godApplyNavalPolicy(ref StrategyData data)
 	gOverrideNavalMaxMilitaryPop = 0;
 }
 
-// Conqueror's slow rhythm, slowed down further; faster once we are pushing.
+// The slow rhythm, faster once we are pushing.
 void godApplyAttackCadence()
 {
-	int interval = 0;
+	int interval = godSlowInterval();
 	if (gGodPushing == true)
 	{
 		interval = cGodPushInterval;
-	}
-	else
-	{
-		interval = xsFloatToInt(selectByDifficultyFloat(20, 15, 9, 7, 5, 5) * 60.0 * cGodCadenceMultiplier);
 	}
 	gAttackManager.mBaseAttackInterval = interval;
 	gAttackManager.mAttackInterval = interval;

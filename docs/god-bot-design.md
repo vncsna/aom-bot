@@ -144,8 +144,10 @@ under way continues unless the army itself collapses below the bar.
 **Retreat when it is not working.** `godRetreatMonitor` judges each attack in the field on
 its own: its army pop over the loss window, and the enemy count around it. It pulls that
 attack back when either a large share of it dies within the window, or the enemy on the spot
-clearly outnumbers it. Pulling back the main army also pushes the next attack out, so it
-regroups rather than re-committing; a failed raid is simply called off.
+clearly outnumbers it. Pulling back the main army also pushes the next attack out by a full
+slow interval, set explicitly, so a retreat during a push cannot leave the bot re-committing
+on the 90s cadence; it regroups rather than re-committing, and a failed raid is simply called
+off.
 
 **Never feed a Titan.** A Titan is one unit, so the outnumbered check never sees it, and it
 kills an army faster than the loss window notices. `godTitanNear` calls off any attack
