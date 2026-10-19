@@ -25,8 +25,8 @@ Hold a baseline fixed — one map, one difficulty, one opponent — so rows are 
   closes a game the enemy will not leave, and whether the push/raid cadence presses.
 
 That is three matches for a general read of the bot. Add another only when a change reaches
-a branch those three cannot: a naval or tiny map for the naval-cleanup and tiny-map housing
-branches, a specific opponent, or another major god for the minor-god picks.
+a branch those three cannot: a naval map for the naval-cleanup branch, a specific opponent,
+or another major god for the minor-god picks.
 
 Keep it small:
 

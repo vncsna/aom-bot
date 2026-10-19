@@ -59,7 +59,7 @@ becomes a debugger breakpoint that freezes the bot — see the AI Debugger Confi
   strategy. The stock strategies are never added.
 - The strategy enables every engine flag, then applies our policy (naval off, slow cadence).
   A strategy update runs once a second for the policy that has to react to the live game
-  (tiny-map housing, Wonder/Titan Gate gating, push state).
+  (Wonder/Titan Gate gating, push state).
 - Monitors handle everything that is naturally periodic. They are enabled in `postInit()`.
 
 | Piece | Where | Job |
@@ -90,10 +90,6 @@ The picks and the matchups behind them are in
 **Villages are complete.** Every Town Center base gets one Temple and one military building
 (`godVillageMonitor`). The engine already builds temples slowly; we just make sure a new
 village is never left without one.
-
-**Tiny maps build houses before the Armory.** On `tiny`, once the Temple is up the Armory is
-held until there is a comfortable pop buffer, and houses are pushed in the meantime. Housing
-is what turns a small map into a workable army, so it comes first.
 
 ### Defence
 
@@ -200,7 +196,6 @@ change was meant to do are summarised in [`god-bot-record.md`](god-bot-record.md
 | `cGodPushInterval` | Seconds between attacks while pushing |
 | `cGodPushAdvantagePercent` | How much bigger our army must be than the enemy's to push |
 | `cGodPushHoldPercent` | How much bigger it must stay to keep pushing |
-| `cGodHousePopHeadroomBase` | Free pop wanted before the Armory is allowed on tiny maps |
 | `cGodRetreatLossPercent` | Share of the army lost that triggers a retreat |
 | `cGodRetreatLossWindow` | How long that loss has to happen within |
 | `cGodRetreatEnemyRatioPercent` | Enemy-to-us ratio at the attack that triggers a retreat |

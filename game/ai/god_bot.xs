@@ -14,9 +14,6 @@ include "core/main.xs";
 // Conqueror already attacks on a slow rhythm; we slow it down further.
 const float cGodCadenceMultiplier = 1.5;
 
-// Tiny maps: how much free pop we want before the Armory is allowed.
-const int cGodHousePopHeadroomBase = 15;
-
 // Retreat: abandon an attack after losing this share of the army ...
 const int cGodRetreatLossPercent = 50;
 // ... within this many seconds, or when the enemy outnumbers us by this ratio.
@@ -651,45 +648,6 @@ bool godShouldPush()
 	return ourPower >= required;
 }
 
-void godPushHouseBuild()
-{
-	if (aiPlanGetNumberByTypeAndVariableIntValue(cPlanBuild, cBuildPlanBuildingTypeID, gHouseUnit) > 0)
-	{
-		return;
-	}
-	int baseID = getRandomTownCenterBaseID();
-	createSimpleBuildPlan(gHouseUnit, 1, 96, gEconomicBuildingsCategoryID, baseID, 1);
-}
-
-// On Tiny maps we want houses before the Armory: hold the Armory until the
-// Temple is up and we have a comfortable pop buffer, pushing houses meanwhile.
-void godManageTinyMapHousing(ref StrategyData data)
-{
-	if (cRandomMapName != "tiny")
-	{
-		return;
-	}
-	bool templeBuilt = kbUnitCount(cUnitTypeTemple, cMyID, cUnitStateAlive) >= 1;
-	int age = kbPlayerGetAge(cMyID);
-	int popHeadroom = kbPlayerGetPopCap(cMyID) - kbPlayerGetPop(cMyID);
-	bool housesMaxed = false;
-	int houseLimit = kbPlayerGetProtoStatInt(cMyID, gHouseUnit, cProtoStatBuildLimit);
-	if (houseLimit > 0 && buildingGetNumberAliveAndPlanned(gHouseUnit) >= houseLimit)
-	{
-		housesMaxed = true;
-	}
-	bool enoughHouses = housesMaxed || popHeadroom >= cGodHousePopHeadroomBase + 5 * age;
-
-	if (templeBuilt == true && enoughHouses == false)
-	{
-		data.setFlag(cStrategyFlagBuildArmory, false);
-		godCancelBuildPlans(gArmoryUnit);
-		godPushHouseBuild();
-		return;
-	}
-	data.setFlag(cStrategyFlagBuildArmory, true);
-}
-
 // Pause the engine's Titan Gate placement while we're being pushed. Its state
 // machine lives in file-scoped globals inside godpowers.xs, so the rule itself is
 // the only handle we have: disabling it suspends placement, and re-enabling
@@ -795,7 +753,6 @@ Strategy godBotStrategy()
 			}
 			godApplyAttackCadence();
 		}
-		godManageTinyMapHousing(data);
 		godManageWonderAndTitanGate(data);
 		// cStrategyFlagCanAttack is the engine's gate on its attackManager, so
 		// holding it here is what makes the cadence ours rather than the engine's.
