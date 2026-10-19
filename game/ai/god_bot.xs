@@ -50,8 +50,11 @@ const int cGodTitanHuntArmyPop = 60;
 const int cGodPushArmyPop = 40;   // military pop required before we commit
 const int cGodPushInterval = 90;  // seconds between attacks while pushing
 // The bot reads the enemy's army without scouting, so "clearly ahead" can mean
-// this much more army than theirs rather than a guess.
+// this much more army power than theirs rather than a guess. Committing takes the
+// full margin; staying committed only takes still being ahead, so a wobble around
+// the threshold cannot flip the cadence back and forth.
 const int cGodPushAdvantagePercent = 150;
+const int cGodPushHoldPercent = 110;
 
 // Economy: Conqueror-style boom target for the villager count.
 const int cGodMaxVillagerPop = 90;
@@ -179,6 +182,16 @@ int godEnemyMilitaryNear(vector location = cInvalidVector, float radius = 60.0)
 {
 	return getUnitCountByLocation(cUnitTypeLogicalTypeLandMilitary, cPlayerRelationEnemyNotGaia,
 		cUnitStateAlive, location, radius);
+}
+
+// Combat power of a player's land military. A unit count treats a one-pop slinger
+// and a four-pop hero alike, so the push decision is made on the power that
+// actually decides the fight.
+float godArmyPower(int playerID = -1)
+{
+	int queryID = useSimpleUnitQuery(cUnitTypeLogicalTypeLandMilitary, playerID, cUnitStateAlive);
+	kbUnitQueryExecute(queryID);
+	return kbUnitsGetPower(kbUnitQueryGetResults(queryID));
 }
 
 // Prefer the enemy drop site the enemy can least defend; fall back to any
@@ -574,20 +587,22 @@ bool godShouldPush()
 		return true;
 	}
 	// The bot reads the enemy army directly, so it can tell when it outguns it
-	// rather than waiting for a base count to prove it.
-	int ourArmy = kbUnitCount(cUnitTypeLogicalTypeLandMilitary, cMyID, cUnitStateAlive);
-	int enemyArmy = kbUnitCount(cUnitTypeLogicalTypeLandMilitary, target, cUnitStateAlive);
+	// rather than waiting for a base count to prove it. Once committed, only a
+	// real collapse calls it off, so the cadence cannot flip on a wobble.
+	int requiredPercent = cGodPushHoldPercent;
+	if (gGodPushing == false)
+	{
+		requiredPercent = cGodPushAdvantagePercent;
+	}
+	float ourPower = godArmyPower(cMyID);
+	float enemyPower = godArmyPower(target);
 	// No enemy army left to stop us.
-	if (enemyArmy == 0)
+	if (enemyPower <= 0.0)
 	{
 		return true;
 	}
-	int required = (enemyArmy * cGodPushAdvantagePercent) / 100;
-	if (ourArmy >= required)
-	{
-		return true;
-	}
-	return false;
+	float required = (enemyPower * requiredPercent) / 100.0;
+	return ourPower >= required;
 }
 
 void godPushHouseBuild()

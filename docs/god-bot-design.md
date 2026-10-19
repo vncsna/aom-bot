@@ -132,11 +132,14 @@ own interval has elapsed. The engine still decides what to attack and how; the r
 
 **A decisive push once the bot knows it is ahead.** `godShouldPush()` fires when we are in
 Heroic or later, have a real army (`cGodPushArmyPop`), and either we are an age ahead or we
-outgun the enemy — read directly, not estimated — by `cGodPushAdvantagePercent`. While
-pushing the cadence drops to `cGodPushInterval` and the foot raid stops so the army stays
-massed; the cavalry raid is allowed to run, because it is the one that wants the enemy army
-busy elsewhere. A brief defend state only blocks *starting* a push; a push already under way
-continues unless the army itself collapses below the bar.
+outgun the enemy — read directly, not estimated — by `cGodPushAdvantagePercent`. The
+comparison is on army power, not on a unit count, so a hero is not one slinger; and it is
+asymmetric: committing takes the full margin, staying committed only takes
+`cGodPushHoldPercent`, so a wobble around the threshold cannot flip the cadence back and
+forth. While pushing the cadence drops to `cGodPushInterval` and the foot raid stops so the
+army stays massed; the cavalry raid is allowed to run, because it is the one that wants the
+enemy army busy elsewhere. A brief defend state only blocks *starting* a push; a push already
+under way continues unless the army itself collapses below the bar.
 
 **Retreat when it is not working.** `godRetreatMonitor` judges each attack in the field on
 its own: its army pop over the loss window, and the enemy count around it. It pulls that
@@ -190,6 +193,7 @@ change was meant to do are summarised in [`god-bot-record.md`](god-bot-record.md
 | `cGodPushArmyPop` | Military pop required before we commit to a decisive push |
 | `cGodPushInterval` | Seconds between attacks while pushing |
 | `cGodPushAdvantagePercent` | How much bigger our army must be than the enemy's to push |
+| `cGodPushHoldPercent` | How much bigger it must stay to keep pushing |
 | `cGodHousePopHeadroomBase` | Free pop wanted before the Armory is allowed on tiny maps |
 | `cGodRetreatLossPercent` | Share of the army lost that triggers a retreat |
 | `cGodRetreatLossWindow` | How long that loss has to happen within |
