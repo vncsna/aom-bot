@@ -83,6 +83,12 @@ const int cGodStanceNormal = 0;
 const int cGodStanceFortify = 1;
 const int cGodStanceAssist = 2;
 
+// An enemy player counts as pressing one of our bases once it has this much army
+// power on it, so a scout or a lone villager does not read as a raid.
+const float cGodThreatMinPower = 5.0;
+// Troops gathered just outside a base's own radius still count as being on it.
+const float cGodThreatExtraRadius = 20.0;
+
 //==============================================================================
 // State
 //==============================================================================
@@ -99,6 +105,10 @@ int gGodEnemyCount = 0;
 int gGodAllyCount = 0;
 bool gGodTeamGame = false;
 int gGodStance = cGodStanceNormal;
+int gGodThreatBaseID = -1;
+float gGodThreatPower = 0.0;
+int gGodThreatPlayers = 0;
+float gGodHomePower = 0.0;
 
 //==============================================================================
 // Helpers
@@ -257,6 +267,74 @@ float godArmyPower(int playerID = -1)
 	int queryID = useSimpleUnitQuery(cUnitTypeLogicalTypeLandMilitary, playerID, cUnitStateAlive);
 	kbUnitQueryExecute(queryID);
 	return kbUnitsGetPower(kbUnitQueryGetResults(queryID));
+}
+
+// Combat power of one player's land military around a point. The bot sees the whole
+// map, so it never has to scout to know how much is sitting somewhere.
+float godPowerNear(int player = cMyID, vector location = cInvalidVector, float radius = 60.0)
+{
+	int queryID = useSimpleUnitQuery(cUnitTypeLogicalTypeLandMilitary, player, cUnitStateAlive, location, radius);
+	kbUnitQueryExecute(queryID);
+	return kbUnitQueryGetPower(queryID);
+}
+
+// A base's own radius plus a margin, so troops massing just outside it still count
+// as being on the base.
+float godBaseThreatRadius(int baseID = -1)
+{
+	return kbBaseGetDistance(cMyID, baseID) + cGodThreatExtraRadius;
+}
+
+// Read the enemy pressure on every Town Center base we own, totalled and split by
+// the player it belongs to. "Three raids from three players" then shows up as three
+// players on our bases, instead of one global under-attack flag; the fortify stance
+// and the fallback rule both decide from this. Refreshed once per strategy update.
+void godUpdateThreat()
+{
+	gGodThreatBaseID = -1;
+	gGodThreatPower = 0.0;
+	gGodThreatPlayers = 0;
+	gGodHomePower = 0.0;
+	float worst = 0.0;
+	int numBases = kbBaseGetNumber(cMyID);
+	for (int i = 0; i < numBases; i++)
+	{
+		int baseID = kbBaseGetIDByIndex(cMyID, i);
+		if (kbBaseIsFlagSet(cMyID, baseID, cBaseFlagTownCenter) == false)
+		{
+			continue;
+		}
+		vector loc = kbBaseGetLocation(cMyID, baseID);
+		float radius = godBaseThreatRadius(baseID);
+		float enemy = godPowerNear(cPlayerRelationEnemyNotGaia, loc, radius);
+		gGodThreatPower = gGodThreatPower + enemy;
+		gGodHomePower = gGodHomePower + godPowerNear(cMyID, loc, radius);
+		if (enemy > worst)
+		{
+			worst = enemy;
+			gGodThreatBaseID = baseID;
+		}
+	}
+	for (int i = 1; i <= cNumberPlayers; i++)
+	{
+		if (i == cMyID || kbPlayerHasLost(i) == true || kbPlayerIsAlly(i) == true)
+		{
+			continue;
+		}
+		for (int j = 0; j < numBases; j++)
+		{
+			int baseID = kbBaseGetIDByIndex(cMyID, j);
+			if (kbBaseIsFlagSet(cMyID, baseID, cBaseFlagTownCenter) == false)
+			{
+				continue;
+			}
+			if (godPowerNear(i, kbBaseGetLocation(cMyID, baseID), godBaseThreatRadius(baseID)) >= cGodThreatMinPower)
+			{
+				gGodThreatPlayers++;
+				break;
+			}
+		}
+	}
 }
 
 // Prefer the enemy drop site the enemy can least defend; fall back to any
@@ -890,6 +968,7 @@ Strategy godBotStrategy()
 	// Runs every second. Returning false would end the strategy, so always true.
 	strategy.mUpdateFunc = [](ref StrategyData data) -> bool
 	{
+		godUpdateThreat();
 		int age = kbPlayerGetAge(cMyID);
 		if (age != gGodLastAge)
 		{
@@ -1231,7 +1310,9 @@ minInterval 30
 		+ " underAttack=" + underAttack
 		+ " enemies=" + gGodEnemyCount
 		+ " allies=" + gGodAllyCount
-		+ " stance=" + godStanceName(gGodStance));
+		+ " stance=" + godStanceName(gGodStance)
+		+ " threat=" + xsFloatToInt(gGodThreatPower)
+		+ " threatPlayers=" + gGodThreatPlayers);
 }
 
 // Player counts change as players are eliminated, so refresh them on a timer rather
