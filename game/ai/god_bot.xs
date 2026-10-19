@@ -23,6 +23,11 @@ const int cGodRetreatLossPercent = 50;
 const int cGodRetreatLossWindow = 45;
 const int cGodRetreatEnemyRatioPercent = 150;
 
+// Each attack carries its own loss sample, in two plan variables the engine leaves
+// unused: its army power at the start of the loss window, and when that was.
+const int cGodRetreatSamplePopVar = cAttackPlanUnused2;
+const int cGodRetreatSampleTimeVar = cAttackPlanUnused4;
+
 // A raid is a small group, so a whole base garrison counts as "outnumbered" and
 // calls it off before it lands. Judge a raid only on the troops sitting on its
 // target, and prefer the target the enemy is not sitting on.
@@ -65,10 +70,6 @@ const int cGodMaxVillagerPop = 90;
 bool gGodNavalMap = false;
 bool gGodPushing = false;
 int gGodLastAge = -1;
-// Per attack plan in the field: its army power at the start of the loss window, and when.
-int[] gGodRetreatPlanIDs = default;
-int[] gGodRetreatSamplePops = default;
-int[] gGodRetreatSampleTimes = default;
 bool gGodHeldTitanGate = false;
 int gGodRaidPlanID = -1;
 bool gGodRaidIsCavalry = false;
@@ -938,16 +939,13 @@ minInterval 10
 // Pull back each attack that is bleeding out, outnumbered on the spot, or standing
 // in front of a Titan. Every attack is judged on its own, so a failing raid never
 // recalls the main army. Retreating is defensive, so this keeps running while
-// godApplyTitanPolicy holds attacks back: an army already in the field still
+// godTitanAllowsAttack holds attacks back: an army already in the field still
 // comes home.
 rule godRetreatMonitor
 inactive
 minInterval 10
 {
 	int now = xsGetTime();
-	int[] planIDs = new int(0, -1);
-	int[] samplePops = new int(0, -1);
-	int[] sampleTimes = new int(0, -1);
 	int[] plans = aiPlanGetIDsByType(cPlanAttack);
 	for (int i = 0; i < plans.size(); i++)
 	{
@@ -967,28 +965,20 @@ minInterval 10
 			continue;
 		}
 		int ourPop = kbUnitsGetPower(units, true);
-		// Keep a plan's sample until its window has passed, so losses add up across checks.
-		int samplePop = ourPop;
-		int sampleTime = now;
-		int index = gGodRetreatPlanIDs.find(planID);
-		if (index != -1 && (now - gGodRetreatSampleTimes[index]) <= cGodRetreatLossWindow)
+		// Keep the sample until its window has passed, so losses add up across checks.
+		int samplePop = aiPlanGetVariableInt(planID, cGodRetreatSamplePopVar, 0);
+		int sampleAge = now - aiPlanGetVariableInt(planID, cGodRetreatSampleTimeVar, 0);
+		if (samplePop == -1 || sampleAge > cGodRetreatLossWindow)
 		{
-			samplePop = gGodRetreatSamplePops[index];
-			sampleTime = gGodRetreatSampleTimes[index];
+			samplePop = ourPop;
+			aiPlanSetVariableInt(planID, cGodRetreatSamplePopVar, 0, ourPop);
+			aiPlanSetVariableInt(planID, cGodRetreatSampleTimeVar, 0, now);
 		}
 		if (godAttackIsLosing(planID, units.size(), ourPop, samplePop) == true)
 		{
 			godRetreatPlan(planID);
-			continue;
 		}
-		planIDs.add(planID);
-		samplePops.add(samplePop);
-		sampleTimes.add(sampleTime);
 	}
-	// Plans that ended or left the field drop out of the samples here.
-	gGodRetreatPlanIDs = planIDs;
-	gGodRetreatSamplePops = samplePops;
-	gGodRetreatSampleTimes = sampleTimes;
 }
 
 // When we can't commit to a full attack, send a small group to hit the enemy
