@@ -9,7 +9,8 @@
 //   1. Economy   - engine auto-eco, villager cap, minor-god picks.
 //   2. Defence   - the engine's defend plan and tower manager, untouched.
 //   3. Offence   - the engine's attack manager on a deliberately slow cadence.
-//   4. Endgame   - the engine's Titan and Wonder monitors, unlocked on a stalemate.
+//   4. Endgame   - the engine's Titan and Wonder monitors, with the two stalls it
+//                  leaves behind (the favour sink, a failed Wonder placement) patched.
 //
 // The land army has one owner: the engine's gPrimaryLandDefendPlan. See the
 // complexity budget in AGENTS.md before adding another.
@@ -46,9 +47,6 @@ const int cGodRetreatEnemyRatioPercent = 150;
 // with an army that can actually take one on.
 const float cGodTitanFleeRadius = 45.0;
 const int cGodTitanHuntArmyPop = 60;
-// A Mythic game that has gone on this long with no age lead is a stalemate, and the
-// engine's Titan and Wonder monitors are unlocked.
-const int cGodStalemateSeconds = 360;
 
 //==============================================================================
 // State
@@ -56,8 +54,6 @@ const int cGodStalemateSeconds = 360;
 bool gGodNavalMap = false;
 bool gGodPushing = false;
 int gGodLastAge = -1;
-bool gGodStalemate = false;
-int gGodMythicSince = -1;
 // Per attack plan in the field: its power at the start of the loss window, and when.
 int[] gGodRetreatPlanIDs = default;
 int[] gGodRetreatSamplePops = default;
@@ -475,45 +471,6 @@ bool godShouldPush()
 	return ourPower >= required;
 }
 
-// Latch the stalemate once we have sat in Mythic long enough with the enemy there
-// too. An age lead is a win in progress, and the push is the answer to that.
-void godUpdateStalemate()
-{
-	if (gGodStalemate == true)
-	{
-		return;
-	}
-	if (kbPlayerGetAge(cMyID) < cAge4)
-	{
-		return;
-	}
-	if (gGodMythicSince == -1)
-	{
-		gGodMythicSince = xsGetTime();
-	}
-	int target = aiGetMostHatedPlayerID();
-	if (target == -1 || kbPlayerGetAge(target) < cAge4)
-	{
-		return;
-	}
-	int inMythic = xsGetTime() - gGodMythicSince;
-	if (inMythic < cGodStalemateSeconds)
-	{
-		return;
-	}
-	gGodStalemate = true;
-	aiEcho("[GodBot] Stalemate after " + inMythic + "s in Mythic - going for a Titan.");
-}
-
-// A stalemate unlocks both win conditions. The engine's own monitors buy Secrets of
-// the Titans, place the Gate and build the Wonder; the bot only decides when they are
-// allowed.
-void godManageWinConditions(ref StrategyData data)
-{
-	data.setFlag(cStrategyFlagBuildTitan, gGodStalemate);
-	data.setFlag(cStrategyFlagBuildWonder, gGodStalemate);
-}
-
 // Feeding an army to a Titan just loses the army. While one is on the field and we
 // cannot answer it, hold new attacks back and let the engine's defend plan keep the
 // army under the towers.
@@ -561,8 +518,6 @@ Strategy godBotStrategy()
 			// the naval shutdown has to be re-applied at each age, not just at init.
 			godApplyNavalPolicy(data);
 		}
-		godUpdateStalemate();
-		godManageWinConditions(data);
 		// The engine's attackManager is the only thing that launches attacks, and its
 		// own defend plan owns the army. This gate holds new attacks back only while
 		// an enemy Titan is unanswerable.
@@ -762,10 +717,6 @@ rule godFavourReserveMonitor
 inactive
 minInterval 10
 {
-	if (gGodStalemate == false)
-	{
-		return;
-	}
 	if (kbGodPowerGetNumCharges(cProtoPowerTitanGate, cMyID) >= 1)
 	{
 		gGodHoldingFavour = false;
@@ -800,10 +751,6 @@ rule godWonderFallbackMonitor
 inactive
 minInterval 20
 {
-	if (gGodStalemate == false)
-	{
-		return;
-	}
 	if (kbUnitCount(cUnitTypeWonder, cMyID, cUnitStateAlive) >= 1)
 	{
 		return;
