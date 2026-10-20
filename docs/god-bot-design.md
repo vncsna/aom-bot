@@ -121,12 +121,13 @@ about warships only.
 ### Offence
 
 **A slow rhythm the bot holds itself.** Conqueror's attack interval is multiplied by
-`cGodCadenceMultiplier` (1.5) and re-applied on every age change and cadence change. Setting
-the interval is not enough on its own: the engine's `attackManager` randomises it on every
-launch, and on Hard and above it skips the time check once the army is large or the
-resources are in excess. So the bot drives `cStrategyFlagCanAttack` itself and opens it only
-once its own interval has elapsed. The engine still decides what to attack and how; the
-rhythm is ours.
+`cGodCadenceMultiplier` (1.5) and enforced by the attack gate. Setting the engine's interval
+is not enough on its own: the engine randomises `mAttackInterval` after every launch and on
+Hard and above it skips the time check once the army is large or the resources are in
+excess. So the bot drives `cStrategyFlagCanAttack` itself and opens it only once
+`godCadenceInterval()` has elapsed since `gAttackManager.mLastAttackTime` — the engine's own
+launch timestamp, so the rhythm follows real attacks rather than a published number. The
+engine still decides what to attack and how; the rhythm is ours.
 
 **A decisive push once the bot knows it is ahead.** `godShouldPush()` fires when we are in
 Heroic or later, have a real army (`cGodPushArmyPop`), and either we are an age ahead or we
@@ -143,8 +144,8 @@ opened, as plan user variables — and the attack is pulled back when it loses
 `cGodRetreatLossPercent` of that power within `cGodRetreatLossWindow` seconds, is clearly
 outnumbered by the enemy on the spot, or stands in front of a Titan. The loss window
 is what catches a fight the enemy count calls even while the army melts. Pulling back the
-main army also sets the next attack one interval out, so the bot regroups rather than
-re-committing. It leaves the engine's own Titan plans alone: a Titan is one unit, so the
+main army also moves our own gate's clock forward by setting `mLastAttackTime`, so the bot
+regroups rather than re-committing. It leaves the engine's own Titan plans alone: a Titan is one unit, so the
 outnumbered check would otherwise recall it on every pass and it would never land.
 
 **Never feed a Titan.** A Titan is one unit, so the outnumbered check never sees it, and it

@@ -182,7 +182,8 @@ int godSlowInterval()
 }
 
 // The rhythm the bot is on right now: the fast one while pushing, the patient one
-// otherwise.
+// otherwise. This is the interval the attack gate enforces, measured from the engine's
+// last launch.
 int godCadenceInterval()
 {
 	if (gGodPushing == true)
@@ -256,7 +257,6 @@ void godRetreatPlan(int planID = -1)
 	aiPlanSetState(planID, cPlanStateDone);
 	// Don't immediately walk the main army back out; regroup for one interval.
 	gAttackManager.mLastAttackTime = xsGetTime();
-	gAttackManager.mAttackInterval = godCadenceInterval();
 }
 
 //==============================================================================
@@ -430,25 +430,13 @@ void godApplyNavalPolicy(ref StrategyData data)
 	gOverrideNavalMaxMilitaryPop = 0;
 }
 
-// Publish the current rhythm to the engine. The strategy gate and the next attack
-// both read it.
-void godApplyAttackCadence()
-{
-	int interval = godCadenceInterval();
-	gAttackManager.mBaseAttackInterval = interval;
-	gAttackManager.mAttackInterval = interval;
-	gNavalAttackManager.mBaseAttackInterval = interval;
-	gNavalAttackManager.mAttackInterval = interval;
-	aiEcho("[GodBot] Attack interval set to " + interval + " seconds.");
-}
-
 // The engine's attackManager decides *what* to attack, but not *when*: it randomises
-// the interval on launch, and on Hard and above it skips the time check once the army
-// is large. Holding cStrategyFlagCanAttack closed until our own interval has elapsed
-// makes the rhythm ours. The engine still launches when it is otherwise ready.
+// the interval after every launch and on Hard and above it skips the time check once
+// the army is large. Holding cStrategyFlagCanAttack closed until our own cadence has
+// elapsed makes the rhythm ours. The engine still launches when it is otherwise ready.
 bool godAttackGateOpen()
 {
-	return gAttackManager.waitedLongEnough();
+	return (xsGetTime() - gAttackManager.mLastAttackTime) >= godCadenceInterval();
 }
 
 // Are we clearly ahead enough to commit to a decisive push? Conservative on purpose:
@@ -521,7 +509,6 @@ Strategy godBotStrategy()
 		aiEcho("[GodBot] Game shape: " + gGodEnemyCount + " enemies, " + gGodAllyCount + " allies.");
 		data.enableAllStrategyFlags();
 		godApplyNavalPolicy(data);
-		godApplyAttackCadence();
 		gGodLastAge = kbPlayerGetAge(cMyID);
 		return true;
 	};
@@ -533,7 +520,6 @@ Strategy godBotStrategy()
 		if (age != gGodLastAge)
 		{
 			gGodLastAge = age;
-			godApplyAttackCadence();
 			// The engine re-enables its default strategy flags as the game goes on, so
 			// the naval shutdown has to be re-applied at each age, not just at init.
 			godApplyNavalPolicy(data);
@@ -664,7 +650,6 @@ minInterval 10
 	{
 		aiEcho("[GodBot] Back to the slow rhythm.");
 	}
-	godApplyAttackCadence();
 }
 
 // Pull back each attack that is bleeding out, outnumbered on the spot, or standing
