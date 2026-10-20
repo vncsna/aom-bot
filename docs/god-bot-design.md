@@ -36,8 +36,8 @@ responsibilities**, each with one implementation:
 2. **Defence** — the engine's `gPrimaryLandDefendPlan` and `towerManager`, untouched.
 3. **Offence** — the engine's `attackManager` on a deliberately slow cadence, a decisive
    push when ahead, and a refusal to feed a Titan.
-4. **Endgame** — the engine's Titan and Wonder monitors, unlocked on a stalemate, with a
-   favour reserve and a Wonder placement fallback where the engine stalls.
+4. **Endgame** — the engine's Titan and Wonder monitors, with the two stalls it leaves
+   behind (the favour sink, a failed Wonder placement) patched.
 
 The land army has **one owner**: the engine's primary defend plan. No custom plan claims
 it. Earlier versions added a choke plan, a fallback plan, a per-base threat count, an ally
@@ -63,18 +63,18 @@ becomes a debugger breakpoint that freezes the bot — see the AI Debugger Confi
 - `preInit()` sets the economy target and the minor-god picks, then installs the override
   strategy. The stock strategies are never added.
 - The strategy enables every engine flag, applies our policy (naval off, slow cadence), and
-  runs once a second for the few things that must react to the live game: the age change,
-  the stalemate, the win-condition flags and the attack gate.
+  runs once a second for the few things that must react to the live game: the age change
+  and the attack gate.
 - Monitors handle everything periodic. They are enabled in `postInit()`.
 
 | Piece | Where | Job |
 |---|---|---|
-| Strategy | `godBotStrategy()` | Flags, naval, cadence, stalemate, win conditions, attack gate |
+| Strategy | `godBotStrategy()` | Flags, naval, cadence, attack gate |
 | `godNavalCleanupMonitor` | 30s | Scrap warships on non-naval maps |
 | `godTowerUpgradeMonitor` | 10s | Research tower upgrades as early as possible |
 | `godPushMonitor` | 10s | Decide the push and change the cadence |
 | `godRetreatMonitor` | 10s | Pull an attack back when it is bleeding out, outnumbered or facing a Titan |
-| `godFavourReserveMonitor` | 10s | Hold myth training so the 50 favour for Secrets of the Titans banks |
+| `godFavourReserveMonitor` | 10s | Hold the 50 favour for Secrets of the Titans once the bank is ready |
 | `godWonderFallbackMonitor` | 20s | Move a failed Wonder plan to the next TC base |
 | `godTelemetryMonitor` | 30s | Recount the players and emit a `[GBOT]` metrics line |
 
@@ -156,27 +156,34 @@ resume on their normal rhythm.
 
 ### Endgame
 
-**A stalemate unlocks both win conditions.** Once both sides have sat in Mythic for
-`cGodStalemateSeconds` with no age lead, neither side is closing the game: the armies trade
-at the pop cap and the bank piles up. `godUpdateStalemate` latches the stalemate, and
-`godManageWinConditions` sets `cStrategyFlagBuildTitan` and `cStrategyFlagBuildWonder`.
+**The engine decides when.** `enableAllStrategyFlags()` turns on `cStrategyFlagBuildTitan`
+and `cStrategyFlagBuildWonder` from init, and the bot keeps its hands off them. An earlier
+version held both behind a 360-second Mythic stalemate; it fired in the three matches that
+followed and none of them produced a Titan, while the last win had no latch at all and stock
+AIs in those same matches got Gates up on the engine's own clock. The engine's guards are the
+real ones: Mythic, 1500 excess of each resource, and 50 favour banked.
 
 **The engine does the rest.** `secretsOfTheTitansMonitor` researches Secrets of the Titans,
 `titanGateConstructionMonitor` places the Gate, and the engine's Wonder monitor builds the
 Wonder. Two engine stalls are patched at their cause, both logged so the next run shows
 whether they fired:
 
-- **The favour reserve.** A myth unit is the only thing that spends favour fast enough to
-  keep the bank under the 50 the tech costs, so `godFavourReserveMonitor` destroys the myth
-  training plans from the stalemate until the Gate is charged. Cancelling refunds the
-  favour; the rest of the army keeps training.
+- **The favour reserve.** Myth training spends favour as fast as it arrives, so the bank
+  never reaches the 50 the tech costs: in the 41-minute mirage loss favour peaked at 46 and
+  the tech was refused for 17 minutes. `godFavourReserveMonitor` destroys the myth training
+  plans and suspends `godPowerRebuyMonitor` once the engine's own bank check
+  (`haveExcessResourceAmount(1500)`) passes, so the hold cannot start before the purchase is
+  possible. Cancelling refunds the favour; it releases when the research starts or the Gate
+  is charged, and the rest of the army keeps training throughout.
 - **The Wonder fallback.** The engine offers the Wonder only the safest base's back areas and
-  a failed plan stays failed, so a crowded base stalls it for the rest of the match.
-  `godWonderFallbackMonitor` destroys the failed plan and rebuilds on the next TC base in
-  the ring, which searches the whole base instead of the back areas.
+  a failed plan stays failed, so a crowded base stalls it for the rest of the match. The
+  Wonder costs 5,000 food, 5,000 wood and 5,000 gold and no favour, so it never competes with
+  the tech. `godWonderFallbackMonitor` destroys the failed plan and rebuilds on the next TC
+  base in the ring with the engine's own builder count, which searches the whole base
+  instead of the back areas.
 
-Neither one buys or places anything on its own: the win-condition flags stay the only
-switch, and both monitors return as soon as the gate is charged or the Wonder exists.
+Neither one buys or places anything on its own: the win-condition flags are the engine's,
+and both monitors return as soon as the Gate is charged or the Wonder exists.
 
 ## Telemetry
 
@@ -212,7 +219,6 @@ change was meant to do are summarised in [`god-bot-record.md`](god-bot-record.md
 | `cGodRetreatEnemyRatioPercent` | Enemy-to-us ratio at the attack that triggers a retreat |
 | `cGodTitanFleeRadius` | How close an enemy Titan has to be to call an attack off |
 | `cGodTitanHuntArmyPop` | Military pop needed to take an enemy Titan on |
-| `cGodStalemateSeconds` | How long we must have sat in Mythic before the win conditions unlock |
 
 ## Caveats
 
@@ -230,6 +236,6 @@ change was meant to do are summarised in [`god-bot-record.md`](god-bot-record.md
 - **The tuning numbers are starting points.** Retreat and push thresholds are the first
   things to adjust after a game.
 - **The endgame patches only touch the engine's stalls.** The favour reserve and the Wonder
-  fallback both act on engine plans the bot already owns through the win-condition flags.
-  A stall with a different cause (a missing bank, a Gate that cannot be placed) still
+  fallback both act on plans the engine already owns; neither creates a win condition of its
+  own. A stall with a different cause (a missing bank, a Gate that cannot be placed) still
   belongs in `god-bot-record.md` before any new rule is added.

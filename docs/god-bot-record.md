@@ -59,6 +59,9 @@ Keep it small:
 
 | Date | Commit | Change | Expected effect | Observed |
 |---|---|---|---|---|
+| 2026-10-20 | `8f08b4e` | Delete the 360-second Mythic stalemate: `cStrategyFlagBuildTitan`/`BuildWonder` stay on from init and the engine's own guards decide | No bot-invented delay before the tech is bought; the Titan starts as soon as the bank and the favour allow | — |
+| 2026-10-20 | `68a04ce` | Hold myth training and god-power rebuys only once `haveExcessResourceAmount(1500)` passes, until the research starts or the Gate is charged | The 50 favour banks when the purchase is actually possible, so the hold costs a couple of minutes of myth units instead of the whole match, and a rebuy cannot take the bank | — |
+| 2026-10-20 | `1909b54` | The Wonder fallback uses `cCalculateNumBuildersAutomatically` instead of one builder | The retried Wonder is built with the engine's own 5–10 builders, not a single villager | — |
 | 2026-10-20 | `bcea450` | Restore the loss-window retreat (`cGodRetreatLossPercent` / `cGodRetreatLossWindow`) and put the cadence back to 1.5x | An attack that melts inside 45s comes home before the enemy count calls the fight even; the slower rhythm keeps the army massed | — |
 | 2026-10-20 | `9e59952` | Delete `gGodDefendHome` and `cGodDefendTowersPerBase`: the engine's defend plan and `towerManager` own defence | Ten flips in one match did nothing; the army returns to the engine's own defence instead of pausing on a flag | — |
 | 2026-10-20 | `dba9d0b` | Hold myth training from the stalemate until the Titan Gate is charged | The favour banks to the 50 Secrets of the Titans costs, so the engine's tech monitor can buy it | — |
