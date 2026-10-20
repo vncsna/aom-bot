@@ -62,6 +62,7 @@ int gGodMythicSince = -1;
 int[] gGodRetreatPlanIDs = default;
 int[] gGodRetreatSamplePops = default;
 int[] gGodRetreatSampleTimes = default;
+bool gGodHoldingFavour = false;
 
 int gGodEnemyCount = 0;
 int gGodAllyCount = 0;
@@ -752,6 +753,44 @@ minInterval 10
 	gGodRetreatSampleTimes = sampleTimes;
 }
 
+// The engine refuses to buy Secrets of the Titans without the favour cost banked, and
+// myth training spends every point as it arrives, so the Titan never comes however
+// full the other resources are. Hold myth training from the stalemate until the Gate
+// is charged; the refunds are what lets the favour accumulate.
+rule godFavourReserveMonitor
+inactive
+minInterval 10
+{
+	if (gGodStalemate == false)
+	{
+		return;
+	}
+	if (kbGodPowerGetNumCharges(cProtoPowerTitanGate, cMyID) >= 1)
+	{
+		gGodHoldingFavour = false;
+		return;
+	}
+	if (kbTechGetStatus(cTechSecretsOfTheTitans) != cTechStatusObtainable)
+	{
+		return;
+	}
+	if (gGodHoldingFavour == false)
+	{
+		gGodHoldingFavour = true;
+		aiEcho("[GodBot] Holding myth training to bank "
+			+ xsFloatToInt(kbTechGetCostPerResource(cTechSecretsOfTheTitans, cResourceFavor))
+			+ " favour for the Titan.");
+	}
+	for (int i = gMythUnitTrainPlans.size() - 1; i >= 0; i--)
+	{
+		int planID = gMythUnitTrainPlans[i];
+		if (aiPlanGetIsIDValid(planID) == true)
+		{
+			aiPlanDestroy(planID);
+		}
+	}
+}
+
 // One structured line every 30s for offline analysis. Read it back from
 // temp/Logs/MythRetoldAIOutputPlayer<N>.txt; see AGENTS.md.
 rule godTelemetryMonitor
@@ -828,5 +867,6 @@ void postInit()
 	xsEnableRule("godTowerUpgradeMonitor");
 	xsEnableRule("godPushMonitor");
 	xsEnableRule("godRetreatMonitor");
+	xsEnableRule("godFavourReserveMonitor");
 	xsEnableRule("godTelemetryMonitor");
 }
