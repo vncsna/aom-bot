@@ -22,7 +22,7 @@ include "core/main.xs";
 // Conqueror already attacks on a slow rhythm; we slow it down further. The engine
 // randomises the interval on launch and skips its time check on Hard and above once
 // the army is large, so the strategy gate holds the rhythm ourselves.
-const float cGodCadenceMultiplier = 1.2;
+const float cGodCadenceMultiplier = 1.5;
 
 // Decisive push: once we are clearly ahead, attack on a fast cadence instead.
 const int cGodPushArmyPop = 40;
@@ -35,7 +35,11 @@ const int cGodPushHoldPercent = 110;
 // Economy: Conqueror-style boom target for the villager count.
 const int cGodMaxVillagerPop = 90;
 
-// Retreat an attack once the enemy on the spot outnumbers it by this ratio.
+// Retreat an attack that is bleeding out: losing this share of its power within this
+// many seconds is a fight it cannot win, whatever the enemy count says.
+const int cGodRetreatLossPercent = 50;
+const int cGodRetreatLossWindow = 45;
+// And retreat one that the enemy on the spot outnumbers by this ratio.
 const int cGodRetreatEnemyRatioPercent = 150;
 
 // The enemy's Titan: call an attack off when it is close, and only commit again
@@ -57,6 +61,10 @@ bool gGodPushing = false;
 int gGodLastAge = -1;
 bool gGodStalemate = false;
 int gGodMythicSince = -1;
+// Per attack plan in the field: its power at the start of the loss window, and when.
+int[] gGodRetreatPlanIDs = default;
+int[] gGodRetreatSamplePops = default;
+int[] gGodRetreatSampleTimes = default;
 
 bool gGodDefendHome = false;
 
@@ -195,19 +203,30 @@ int godCadenceInterval()
 	return godSlowInterval();
 }
 
-// Is this attack outnumbered on the spot, or standing in front of a Titan?
-bool godAttackIsLosing(int planID = -1, int ourCount = 0)
+// Is this attack bleeding out, outnumbered on the spot, or standing in front of a
+// Titan?
+bool godAttackIsLosing(int planID = -1, int ourCount = 0, int ourPop = 0, int samplePop = 0)
 {
 	vector planLoc = aiPlanGetLocation(planID);
 	if (planLoc == cInvalidVector)
 	{
 		return false;
 	}
-	// A Titan kills an army faster than any count shows, so never feed it.
+	// A Titan kills an army faster than the loss window can notice it.
 	if (godTitanNear(planLoc) == true)
 	{
 		aiEcho("[GodBot] Retreating " + aiPlanGetName(planID) + ": enemy Titan in the field.");
 		return true;
+	}
+	if (samplePop > 0)
+	{
+		int lostPop = samplePop - ourPop;
+		int lostPercent = (lostPop * 100) / samplePop;
+		if (lostPercent >= cGodRetreatLossPercent)
+		{
+			aiEcho("[GodBot] Retreating " + aiPlanGetName(planID) + ": lost " + lostPop + " of " + samplePop + " pop.");
+			return true;
+		}
 	}
 	int enemyCount = godEnemyMilitaryNear(planLoc);
 	int enemyRatio = (enemyCount * 100) / ourCount;
@@ -715,14 +734,18 @@ minInterval 10
 	godApplyAttackCadence();
 }
 
-// Pull back each attack that is outnumbered on the spot or standing in front of a
-// Titan. Every attack is judged on its own. This keeps running while
+// Pull back each attack that is bleeding out, outnumbered on the spot, or standing
+// in front of a Titan. Every attack is judged on its own. This keeps running while
 // godTitanAllowsAttack holds new attacks back: an army already in the field still
 // comes home.
 rule godRetreatMonitor
 inactive
 minInterval 10
 {
+	int now = xsGetTime();
+	int[] planIDs = new int(0, -1);
+	int[] samplePops = new int(0, -1);
+	int[] sampleTimes = new int(0, -1);
 	int[] plans = aiPlanGetIDsByType(cPlanAttack);
 	for (int i = 0; i < plans.size(); i++)
 	{
@@ -747,11 +770,30 @@ minInterval 10
 		{
 			continue;
 		}
-		if (godAttackIsLosing(planID, units.size()) == true)
+		int ourPop = kbUnitsGetPower(units, true);
+		// Keep a plan's sample until its window has passed, so losses add up across
+		// checks.
+		int samplePop = ourPop;
+		int sampleTime = now;
+		int index = gGodRetreatPlanIDs.find(planID);
+		if (index != -1 && (now - gGodRetreatSampleTimes[index]) <= cGodRetreatLossWindow)
+		{
+			samplePop = gGodRetreatSamplePops[index];
+			sampleTime = gGodRetreatSampleTimes[index];
+		}
+		if (godAttackIsLosing(planID, units.size(), ourPop, samplePop) == true)
 		{
 			godRetreatPlan(planID);
+			continue;
 		}
+		planIDs.add(planID);
+		samplePops.add(samplePop);
+		sampleTimes.add(sampleTime);
 	}
+	// Plans that ended or left the field drop out of the samples here.
+	gGodRetreatPlanIDs = planIDs;
+	gGodRetreatSamplePops = samplePops;
+	gGodRetreatSampleTimes = sampleTimes;
 }
 
 // One structured line every 30s for offline analysis. Read it back from
