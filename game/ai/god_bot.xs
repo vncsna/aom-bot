@@ -77,11 +77,6 @@ bool godIsNavalMap()
 	return false;
 }
 
-bool godUnderAttack()
-{
-	return gDefensivelyOverrun;
-}
-
 // Count the players still in the game. Gaia is player 0, so starting at 1 skips it;
 // this is the loop the base game's chats.xs uses to total team scores. Players drop
 // out as they are eliminated, so the caller refreshes this rather than caching it.
@@ -134,13 +129,6 @@ int godEnemyTitanID()
 	return getUnit(cUnitTypeAbstractTitan, target, cUnitStateAlive);
 }
 
-// A Titan counts as one enemy unit, so the outnumbered check never sees it coming.
-bool godTitanNear(vector location = cInvalidVector)
-{
-	return getUnitCountByLocation(cUnitTypeAbstractTitan, cPlayerRelationEnemyNotGaia,
-		cUnitStateAlive, location, cGodTitanFleeRadius) > 0;
-}
-
 // The patient rhythm: Conqueror's attack interval by difficulty, slowed further.
 int godSlowInterval()
 {
@@ -184,16 +172,18 @@ int godSamplePower(int planID = -1, int ourPower = 0)
 }
 
 // Is this attack bleeding out, outnumbered on the spot, or standing in front of a
-// Titan?
-bool godAttackIsLosing(int planID = -1, int ourCount = 0, int ourPop = 0, int samplePop = 0)
+// Titan? titanLoc is the enemy Titan's position for this pass, or cInvalidVector.
+bool godAttackIsLosing(int planID = -1, vector titanLoc = cInvalidVector, int ourCount = 0,
+	int ourPop = 0, int samplePop = 0)
 {
 	vector planLoc = aiPlanGetLocation(planID);
 	if (planLoc == cInvalidVector)
 	{
 		return false;
 	}
-	// A Titan kills an army faster than the loss window can notice it.
-	if (godTitanNear(planLoc) == true)
+	// A Titan counts as one enemy unit and kills an army faster than the loss window
+	// can notice it, so it is checked by distance instead.
+	if (titanLoc != cInvalidVector && xsVectorDistance(planLoc, titanLoc) <= cGodTitanFleeRadius)
 	{
 		aiEcho("[GodBot] Retreating " + aiPlanGetName(planID) + ": enemy Titan in the field.");
 		return true;
@@ -228,12 +218,6 @@ void godRetreatPlan(int planID = -1)
 //==============================================================================
 // Strategy policy
 //==============================================================================
-
-// A Conqueror booms: ask for a large villager count to fund a slow push.
-void godApplyEconomy()
-{
-	gOverrideMaxVillagerPop = cGodMaxVillagerPop;
-}
 
 void godSetMinorGods(int classical = -1, int heroic = -1, int mythic = -1)
 {
@@ -470,8 +454,6 @@ Strategy godBotStrategy()
 	strategy.mInitFunc = [](ref StrategyData data) -> bool
 	{
 		aiEcho("=== [GodBot] strategy init ===");
-		godCountPlayers();
-		aiEcho("[GodBot] Game shape: " + gGodEnemyCount + " enemies, " + gGodAllyCount + " allies.");
 		data.enableAllStrategyFlags();
 		godApplyNavalPolicy(data);
 		gGodLastAge = kbPlayerGetAge(cMyID);
@@ -572,6 +554,14 @@ rule godRetreatMonitor
 inactive
 minInterval 10
 {
+	// Resolve the enemy Titan once for every attack in the field, rather than once
+	// per plan.
+	int titanID = godEnemyTitanID();
+	vector titanLoc = cInvalidVector;
+	if (titanID != -1)
+	{
+		titanLoc = kbUnitGetPosition(titanID);
+	}
 	int[] plans = aiPlanGetIDsByType(cPlanAttack);
 	for (int i = 0; i < plans.size(); i++)
 	{
@@ -598,7 +588,7 @@ minInterval 10
 		}
 		int ourPop = kbUnitsGetPower(units, true);
 		int samplePop = godSamplePower(planID, ourPop);
-		if (godAttackIsLosing(planID, units.size(), ourPop, samplePop) == true)
+		if (godAttackIsLosing(planID, titanLoc, units.size(), ourPop, samplePop) == true)
 		{
 			godRetreatPlan(planID);
 		}
@@ -741,7 +731,7 @@ minInterval 30
 		state = "push";
 	}
 	int underAttack = 0;
-	if (godUnderAttack() == true)
+	if (gDefensivelyOverrun == true)
 	{
 		underAttack = 1;
 	}
@@ -774,7 +764,8 @@ minInterval 30
 void preInit()
 {
 	aiEcho("=== [GodBot] preInit() - installing Conqueror strategy ===");
-	godApplyEconomy();
+	// A Conqueror booms: ask for a large villager count to fund a slow push.
+	gOverrideMaxVillagerPop = cGodMaxVillagerPop;
 	godApplyMinorGods();
 	setOverrideStrategy(godBotStrategySetup);
 }

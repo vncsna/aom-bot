@@ -18,8 +18,8 @@ the moment it matters, with no scout and no guess:
 - **The enemy's army, anywhere.** `godEnemyMilitaryNear()` counts the enemy's land military
   around any point, and `kbUnitCount()` gives the enemy's army size, age, town centres and
   villager count.
-- **The enemy's Titan.** `godEnemyTitanID()` and `godTitanNear()` locate it without seeing
-  it, so the army never walks into one.
+- **The enemy's Titan.** `godEnemyTitanID()` locates it without seeing it, so the army
+  never walks into one: the retreat pass resolves it once and compares distances.
 - **The attack's own strength.** `kbUnitsGetPower()` measures the army's combat power
   exactly, rather than estimating from unit counts.
 
@@ -141,14 +141,15 @@ push decision lives in `godPushMonitor` because it reads both armies.
 its own. The plan carries its own loss-window sample — the power it had and when the window
 opened, as plan user variables — and the attack is pulled back when it loses
 `cGodRetreatLossPercent` of that power within `cGodRetreatLossWindow` seconds, is clearly
-outnumbered by the enemy on the spot, or stands in front of a Titan. The loss window
-is what catches a fight the enemy count calls even while the army melts. Pulling back the
-main army also moves our own gate's clock forward by setting `mLastAttackTime`, so the bot
-regroups rather than re-committing. It leaves the engine's own Titan plans alone: a Titan is one unit, so the
-outnumbered check would otherwise recall it on every pass and it would never land.
+outnumbered by the enemy on the spot, or stands within `cGodTitanFleeRadius` of an enemy
+Titan. The loss window is what catches a fight the enemy count calls even while the army
+melts. Pulling back the main army also moves our own gate's clock forward by setting
+`mLastAttackTime`, so the bot regroups rather than re-committing. It leaves the engine's own
+Titan plans alone: a Titan is one unit, so the outnumbered check would otherwise recall it
+on every pass and it would never land.
 
 **Never feed a Titan.** A Titan is one unit, so the outnumbered check never sees it, and it
-kills an army faster than any count notices. `godTitanNear` calls off any attack standing
+kills an army faster than any count notices. The retreat pass calls off any attack standing
 within `cGodTitanFleeRadius` of one, and `godTitanAllowsAttack()` vetoes the attack gate
 while an enemy Titan is alive and we cannot answer it: no Titan of our own and less than
 `cGodTitanHuntArmyPop` military pop. The army waits at home with the towers and our own gate
