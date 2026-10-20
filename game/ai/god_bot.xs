@@ -51,7 +51,6 @@ const int cGodTitanHuntArmyPop = 60;
 //==============================================================================
 // State
 //==============================================================================
-bool gGodNavalMap = false;
 bool gGodPushing = false;
 int gGodLastAge = -1;
 bool gGodHoldingFavour = false;
@@ -415,8 +414,7 @@ void godApplyMinorGods()
 // default strategy flags as the game goes on.
 void godApplyNavalPolicy(ref StrategyData data)
 {
-	gGodNavalMap = godIsNavalMap();
-	if (gGodNavalMap == true)
+	if (godIsNavalMap() == true)
 	{
 		aiEcho("[GodBot] Naval map detected - keeping a navy.");
 		return;
@@ -549,42 +547,32 @@ rule godNavalCleanupMonitor
 inactive
 minInterval 30
 {
-	if (gGodNavalMap == true)
+	if (godIsNavalMap() == true)
 	{
 		return;
 	}
-	int[] warships = new int(0, -1);
 	int queryID = kbUnitQueryCreate("GodBot warships");
 	kbUnitQuerySetPlayerID(queryID, cMyID, false);
 	kbUnitQuerySetUnitType(queryID, cUnitTypeLogicalTypeNavalMilitary);
 	kbUnitQuerySetState(queryID, cUnitStateAlive);
-	int num = kbUnitQueryExecute(queryID);
-	for (int i = 0; i < num; i++)
-	{
-		int unitID = kbUnitQueryGetResult(queryID, i);
-		// The query can hand back a unit that died since the KB was built;
-		// aiTaskDeleteUnits warns about those, so drop them here.
-		if (kbUnitGetIsIDValid(unitID) == true)
-		{
-			warships.add(unitID);
-		}
-	}
+	kbUnitQueryExecute(queryID);
+	int[] warships = kbUnitQueryGetResults(queryID);
 	// The engine keeps a named query until it is destroyed; leaking one per run
 	// makes every later kbUnitQueryCreate warn that the name is taken.
 	kbUnitQueryDestroy(queryID);
-	if (warships.size() > 0)
+	if (warships.size() == 0)
 	{
-		// Name what leaked: on a map with water something still queues a warship
-		// even with every naval flag cleared, and the log is the only way to find it.
-		string leaked = "";
-		for (int i = 0; i < warships.size(); i++)
-		{
-			leaked = leaked + " " + kbProtoUnitGetName(kbUnitGetProtoUnitID(warships[i]))
-				+ "#" + warships[i] + " at " + kbUnitGetPosition(warships[i]) + ";";
-		}
-		aiEcho("[GodBot] Not a naval map - scrapping " + warships.size() + " warship(s):" + leaked);
-		aiTaskDeleteUnits(warships);
+		return;
 	}
+	// Name the type that leaked: on a map with water the Dock still queues its myth
+	// unit at each age change even with every naval flag cleared.
+	string leaked = "";
+	for (int i = 0; i < warships.size(); i++)
+	{
+		leaked = leaked + " " + kbProtoUnitGetName(kbUnitGetProtoUnitID(warships[i]));
+	}
+	aiEcho("[GodBot] Not a naval map - scrapping " + warships.size() + " warship(s):" + leaked);
+	aiTaskDeleteUnits(warships);
 }
 
 // Turrets upgraded as early as possible: research the next tower upgrade the
