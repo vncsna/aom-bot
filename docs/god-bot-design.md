@@ -33,11 +33,11 @@ The bot is a Conqueror at heart: slow, territorial, economy-heavy. It has **four
 responsibilities**, each with one implementation:
 
 1. **Economy** — the engine's auto-eco, a large villager cap, and chosen minor gods.
-2. **Defence** — the engine's `gPrimaryLandDefendPlan` and more towers while the base is
-   overrun.
+2. **Defence** — the engine's `gPrimaryLandDefendPlan` and `towerManager`, untouched.
 3. **Offence** — the engine's `attackManager` on a deliberately slow cadence, a decisive
    push when ahead, and a refusal to feed a Titan.
-4. **Endgame** — the engine's Titan and Wonder monitors, unlocked on a stalemate.
+4. **Endgame** — the engine's Titan and Wonder monitors, unlocked on a stalemate, with a
+   favour reserve and a Wonder placement fallback where the engine stalls.
 
 The land army has **one owner**: the engine's primary defend plan. No custom plan claims
 it. Earlier versions added a choke plan, a fallback plan, a per-base threat count, an ally
@@ -64,16 +64,18 @@ becomes a debugger breakpoint that freezes the bot — see the AI Debugger Confi
   strategy. The stock strategies are never added.
 - The strategy enables every engine flag, applies our policy (naval off, slow cadence), and
   runs once a second for the few things that must react to the live game: the age change,
-  the defend signal, the stalemate, the win-condition flags and the attack gate.
+  the stalemate, the win-condition flags and the attack gate.
 - Monitors handle everything periodic. They are enabled in `postInit()`.
 
 | Piece | Where | Job |
 |---|---|---|
-| Strategy | `godBotStrategy()` | Flags, naval, cadence, defend signal, stalemate, win conditions, attack gate |
+| Strategy | `godBotStrategy()` | Flags, naval, cadence, stalemate, win conditions, attack gate |
 | `godNavalCleanupMonitor` | 30s | Scrap warships on non-naval maps |
 | `godTowerUpgradeMonitor` | 10s | Research tower upgrades as early as possible |
 | `godPushMonitor` | 10s | Decide the push and change the cadence |
-| `godRetreatMonitor` | 10s | Pull an attack back when it is outnumbered or facing a Titan |
+| `godRetreatMonitor` | 10s | Pull an attack back when it is bleeding out, outnumbered or facing a Titan |
+| `godFavourReserveMonitor` | 10s | Hold myth training so the 50 favour for Secrets of the Titans banks |
+| `godWonderFallbackMonitor` | 20s | Move a failed Wonder plan to the next TC base |
 | `godTelemetryMonitor` | 30s | Recount the players and emit a `[GBOT]` metrics line |
 
 ## Behaviour
@@ -92,11 +94,12 @@ The picks and the matchups behind them are in
 
 ### Defence
 
-**One signal.** `gGodDefendHome` is read straight from `gDefensivelyOverrun`, the engine's
-serious-trouble flag. There is no per-base threat calculation and no stance machine: the
-engine already computes enemy power per defend base in `military_defend.xs`
-(`gEnemyPowerInBases`) and moves its primary defend plan to the attacked base. When the flag
-is set, the attack gate closes and the army stays with the towers.
+**The engine owns it.** `gPrimaryLandDefendPlan` decides where the army goes and
+`towerManager` decides how many towers a base gets. There is no per-base threat
+calculation, no stance machine and no tower override: the engine already computes enemy
+power per defend base in `military_defend.xs` (`gEnemyPowerInBases`) and moves its primary
+defend plan to the attacked base. A defend-home flag was tried and flipped ten times in a
+match without changing the outcome, so it is gone; the attack gate no longer closes for it.
 
 **Turrets are upgraded immediately.** `godTowerUpgradeMonitor` researches the next
 obtainable tower upgrade as soon as we own a tower, ignoring the stock time gates (4 minutes
@@ -104,10 +107,6 @@ in Classical, 5 in Heroic, 6 in Mythic). It follows the engine's own progression
 variants, publishes the plan through `gTowerOffensiveResearchPlanID`, and reuses the stock
 `resetOffensiveTowerResearchPlan` handler so the stock monitor defers instead of stacking a
 second plan.
-
-**Towers are raised when needed.** While `gGodDefendHome` is set, the strategy asks the
-engine's `towerManager` for `cGodDefendTowersPerBase` towers per base instead of its own
-2-3, and nudges the rule once so the extra towers start immediately.
 
 ### Navy
 
@@ -122,7 +121,7 @@ about warships only.
 ### Offence
 
 **A slow rhythm the bot holds itself.** Conqueror's attack interval is multiplied by
-`cGodCadenceMultiplier` (1.2) and re-applied on every age change and cadence change. Setting
+`cGodCadenceMultiplier` (1.5) and re-applied on every age change and cadence change. Setting
 the interval is not enough on its own: the engine's `attackManager` randomises it on every
 launch, and on Hard and above it skips the time check once the army is large or the
 resources are in excess. So the bot drives `cStrategyFlagCanAttack` itself and opens it only
@@ -139,11 +138,13 @@ forth. While pushing the cadence drops to `cGodPushInterval`, so the army stays 
 push decision lives in `godPushMonitor` because it reads both armies.
 
 **Retreat when it is not working.** `godRetreatMonitor` judges each attack in the field on
-its own: the enemy count around it, and whether an enemy Titan is close. It pulls that
-attack back when the enemy on the spot clearly outnumbers it. Pulling back the main army
-also sets the next attack one interval out, so the bot regroups rather than re-committing.
-It leaves the engine's own Titan plans alone: a Titan is one unit, so the outnumbered check
-would otherwise recall it on every pass and it would never land.
+its own. It samples the attack's power when it first sees it and pulls back when the attack
+loses `cGodRetreatLossPercent` of that power within `cGodRetreatLossWindow` seconds, is
+clearly outnumbered by the enemy on the spot, or stands in front of a Titan. The loss window
+is what catches a fight the enemy count calls even while the army melts. Pulling back the
+main army also sets the next attack one interval out, so the bot regroups rather than
+re-committing. It leaves the engine's own Titan plans alone: a Titan is one unit, so the
+outnumbered check would otherwise recall it on every pass and it would never land.
 
 **Never feed a Titan.** A Titan is one unit, so the outnumbered check never sees it, and it
 kills an army faster than any count notices. `godTitanNear` calls off any attack standing
@@ -159,26 +160,36 @@ resume on their normal rhythm.
 `cGodStalemateSeconds` with no age lead, neither side is closing the game: the armies trade
 at the pop cap and the bank piles up. `godUpdateStalemate` latches the stalemate, and
 `godManageWinConditions` sets `cStrategyFlagBuildTitan` and `cStrategyFlagBuildWonder`.
-Defending home postpones both.
 
 **The engine does the rest.** `secretsOfTheTitansMonitor` researches Secrets of the Titans,
 `titanGateConstructionMonitor` places the Gate, and the engine's Wonder monitor builds the
-Wonder. The bot does not maintain a bank reserve, a favour exemption or a hold/release state
-machine of its own: those were endgame micro-management that never produced a Titan in
-three recorded matches.
+Wonder. Two engine stalls are patched at their cause, both logged so the next run shows
+whether they fired:
+
+- **The favour reserve.** A myth unit is the only thing that spends favour fast enough to
+  keep the bank under the 50 the tech costs, so `godFavourReserveMonitor` destroys the myth
+  training plans from the stalemate until the Gate is charged. Cancelling refunds the
+  favour; the rest of the army keeps training.
+- **The Wonder fallback.** The engine offers the Wonder only the safest base's back areas and
+  a failed plan stays failed, so a crowded base stalls it for the rest of the match.
+  `godWonderFallbackMonitor` destroys the failed plan and rebuilds on the next TC base in
+  the ring, which searches the whole base instead of the back areas.
+
+Neither one buys or places anything on its own: the win-condition flags stay the only
+switch, and both monitors return as soon as the gate is charged or the Wonder exists.
 
 ## Telemetry
 
 `godTelemetryMonitor` emits one line every 30s:
 
 ```
-[GBOT] t=… age=… vills=… pop=cur/cap army=… food=… wood=… gold=… favor=… enemyAge=… enemyTitan=0|1 titans=… wonder=… state=hold|push underAttack=0|1 enemies=… allies=… defend=0|1
+[GBOT] t=… age=… vills=… pop=cur/cap army=… food=… wood=… gold=… favor=… enemyAge=… enemyTitan=0|1 titans=… wonder=… state=hold|push underAttack=0|1 enemies=… allies=…
 ```
 
 `state` is the push stance — `push` while the army is committed, `hold` otherwise.
 `underAttack` is the engine's `gDefensivelyOverrun` flag, reported separately because the
-push state does not change when a base is poked. `defend` is the defend-home decision, and
-`enemies`/`allies` are the live player counts refreshed by the telemetry monitor.
+push state does not change when a base is poked. `enemies`/`allies` are the live player
+counts refreshed by the telemetry monitor.
 
 It lands in the per-player AI log, `temp/Logs/MythRetoldAIOutputPlayer<N>.txt` (UTF-16).
 `scripts/parse_ai_log.py` turns it into a per-run summary. This is the feedback loop that
@@ -196,18 +207,21 @@ change was meant to do are summarised in [`god-bot-record.md`](god-bot-record.md
 | `cGodPushInterval` | Seconds between attacks while pushing |
 | `cGodPushAdvantagePercent` | How much bigger our army must be than the enemy's to push |
 | `cGodPushHoldPercent` | How much bigger it must stay to keep pushing |
+| `cGodRetreatLossPercent` | Share of an attack's power it can lose inside the window |
+| `cGodRetreatLossWindow` | Seconds the loss is measured over |
 | `cGodRetreatEnemyRatioPercent` | Enemy-to-us ratio at the attack that triggers a retreat |
 | `cGodTitanFleeRadius` | How close an enemy Titan has to be to call an attack off |
 | `cGodTitanHuntArmyPop` | Military pop needed to take an enemy Titan on |
 | `cGodStalemateSeconds` | How long we must have sat in Mythic before the win conditions unlock |
-| `cGodDefendTowersPerBase` | Towers per TC base while defending home |
 
 ## Caveats
 
 - **`gDefensivelyOverrun` is the only defence signal.** The engine updates
   `gEnemyPowerInBases` and the flag on its own cadence (`defendManager`, 5s), so the bot
-  reads those rather than running a second per-base calculation. If a match needs a finer
-  distinction than "overrun or not", add it here, not as another plan.
+  reads those rather than running a second per-base calculation. The flag only gates the
+  Wonder fallback now; the army needs no signal because the engine's own defend plan owns
+  it. If a match needs a finer distinction than "overrun or not", add it here, not as
+  another plan.
 - **The army has no custom owner.** The engine's primary defend plan owns it. Any new plan
   must take it briefly and release it, or the complexity budget in
   [`AGENTS.md`](../AGENTS.md) must be raised deliberately.
@@ -215,7 +229,7 @@ change was meant to do are summarised in [`god-bot-record.md`](god-bot-record.md
   measured results; revisit once telemetry shows which games are lost and why.
 - **The tuning numbers are starting points.** Retreat and push thresholds are the first
   things to adjust after a game.
-- **The endgame is delegated.** The engine's `secretsOfTheTitansMonitor` has its own
-  surplus and favour checks. If a stalemate still produces no Titan, the failure is inside
-  the engine's monitor: record the bank and the guard in `god-bot-record.md` before adding
-  a manual purchase back.
+- **The endgame patches only touch the engine's stalls.** The favour reserve and the Wonder
+  fallback both act on engine plans the bot already owns through the win-condition flags.
+  A stall with a different cause (a missing bank, a Gate that cannot be placed) still
+  belongs in `god-bot-record.md` before any new rule is added.

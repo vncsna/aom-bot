@@ -7,7 +7,7 @@
 //
 // Four responsibilities:
 //   1. Economy   - engine auto-eco, villager cap, minor-god picks.
-//   2. Defence   - the engine's defend plan, towers as needed.
+//   2. Defence   - the engine's defend plan and tower manager, untouched.
 //   3. Offence   - the engine's attack manager on a deliberately slow cadence.
 //   4. Endgame   - the engine's Titan and Wonder monitors, unlocked on a stalemate.
 //
