@@ -817,7 +817,7 @@ minInterval 20
 		return;
 	}
 	gGodWonderBaseIndex = (gGodWonderBaseIndex + 1) % bases.size();
-	createSimpleBuildPlan(cUnitTypeWonder, 1, 99, gEconomicBuildingsCategoryID, bases[gGodWonderBaseIndex], 1);
+	createSimpleBuildPlan(cUnitTypeWonder, 1, 99, gEconomicBuildingsCategoryID, bases[gGodWonderBaseIndex]);
 	aiEcho("[GodBot] Wonder placement failed - retrying on base " + (gGodWonderBaseIndex + 1) + " of " + bases.size() + ".");
 }
 
