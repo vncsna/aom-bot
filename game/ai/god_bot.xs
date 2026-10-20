@@ -709,26 +709,48 @@ minInterval 10
 	gGodRetreatSampleTimes = sampleTimes;
 }
 
+// Give myth training and god-power rebuys their spending back.
+void godReleaseFavour()
+{
+	if (gGodHoldingFavour == false)
+	{
+		return;
+	}
+	gGodHoldingFavour = false;
+	xsEnableRule("godPowerRebuyMonitor");
+	aiEcho("[GodBot] Titan favour banked - myth training resumes.");
+}
+
 // The engine refuses to buy Secrets of the Titans without the favour cost banked, and
 // myth training spends every point as it arrives, so the Titan never comes however
-// full the other resources are. Hold myth training from the stalemate until the Gate
-// is charged; the refunds are what lets the favour accumulate.
+// full the other resources are. Hold myth training and god-power rebuys once the
+// engine's own bank check passes, until the tech is bought; the refunds are what lets
+// the favour accumulate.
 rule godFavourReserveMonitor
 inactive
 minInterval 10
 {
 	if (kbGodPowerGetNumCharges(cProtoPowerTitanGate, cMyID) >= 1)
 	{
-		gGodHoldingFavour = false;
+		godReleaseFavour();
 		return;
 	}
 	if (kbTechGetStatus(cTechSecretsOfTheTitans) != cTechStatusObtainable)
 	{
+		godReleaseFavour();
+		return;
+	}
+	// The tech needs the same bank the engine waits for; holding before it would starve
+	// the army for a purchase that cannot happen yet.
+	if (haveExcessResourceAmount(1500) == false)
+	{
+		godReleaseFavour();
 		return;
 	}
 	if (gGodHoldingFavour == false)
 	{
 		gGodHoldingFavour = true;
+		xsDisableRule("godPowerRebuyMonitor");
 		aiEcho("[GodBot] Holding myth training to bank "
 			+ xsFloatToInt(kbTechGetCostPerResource(cTechSecretsOfTheTitans, cResourceFavor))
 			+ " favour for the Titan.");
