@@ -50,9 +50,6 @@ const int cGodTitanHuntArmyPop = 60;
 // engine's Titan and Wonder monitors are unlocked.
 const int cGodStalemateSeconds = 360;
 
-// Defence: towers are raised while the base is actually overrun.
-const int cGodDefendTowersPerBase = 6;
-
 //==============================================================================
 // State
 //==============================================================================
@@ -65,8 +62,6 @@ int gGodMythicSince = -1;
 int[] gGodRetreatPlanIDs = default;
 int[] gGodRetreatSamplePops = default;
 int[] gGodRetreatSampleTimes = default;
-
-bool gGodDefendHome = false;
 
 int gGodEnemyCount = 0;
 int gGodAllyCount = 0;
@@ -442,13 +437,6 @@ bool godAttackGateOpen()
 // the bot only stops being patient once the game is effectively won.
 bool godShouldPush()
 {
-	// Defending home is a decision to hold, not to push: committing the army while
-	// the base is overrun is what loses it in the open. A push already committed
-	// continues until the army itself collapses below the bar.
-	if (gGodDefendHome == true && gGodPushing == false)
-	{
-		return false;
-	}
 	int age = kbPlayerGetAge(cMyID);
 	if (age < cAge3)
 	{
@@ -517,16 +505,16 @@ void godUpdateStalemate()
 
 // A stalemate unlocks both win conditions. The engine's own monitors buy Secrets of
 // the Titans, place the Gate and build the Wonder; the bot only decides when they are
-// allowed. Defending home postpones both, because a long investment would be lost.
+// allowed.
 void godManageWinConditions(ref StrategyData data)
 {
-	bool ready = gGodStalemate == true && gGodDefendHome == false;
-	data.setFlag(cStrategyFlagBuildTitan, ready);
-	data.setFlag(cStrategyFlagBuildWonder, ready);
+	data.setFlag(cStrategyFlagBuildTitan, gGodStalemate);
+	data.setFlag(cStrategyFlagBuildWonder, gGodStalemate);
 }
 
 // Feeding an army to a Titan just loses the army. While one is on the field and we
-// cannot answer it, hold the army at home with the towers.
+// cannot answer it, hold new attacks back and let the engine's defend plan keep the
+// army under the towers.
 bool godTitanAllowsAttack()
 {
 	if (godEnemyTitanID() == -1)
@@ -535,18 +523,6 @@ bool godTitanAllowsAttack()
 	}
 	return kbUnitCount(cUnitTypeAbstractTitan, cMyID, cUnitStateAlive) >= 1
 		|| aiGetCurrentMilitaryPop() >= cGodTitanHuntArmyPop;
-}
-
-// While the base is overrun, the engine keeps more towers per base than its own 2-3.
-// Normal hands the number back to the engine.
-void godApplyDefence(ref StrategyData data)
-{
-	if (gGodDefendHome == true)
-	{
-		data.mTowerAmountPerTCBase = cGodDefendTowersPerBase;
-		return;
-	}
-	data.mTowerAmountPerTCBase = cCalculateNumberTowersAutomatically;
 }
 
 //==============================================================================
@@ -583,32 +559,12 @@ Strategy godBotStrategy()
 			// the naval shutdown has to be re-applied at each age, not just at init.
 			godApplyNavalPolicy(data);
 		}
-		// The engine's own serious-trouble signal is the whole defence decision. A
-		// per-base threat count would pin the army at home in a big game.
-		bool defend = gDefensivelyOverrun;
-		if (defend != gGodDefendHome)
-		{
-			gGodDefendHome = defend;
-			godApplyDefence(data);
-			godApplyAttackCadence();
-			if (defend == true)
-			{
-				aiEcho("[GodBot] Holding the base - the army stays home with the towers.");
-				// towerManager only re-checks every couple of minutes; nudge it so the
-				// extra towers start as soon as the base is overrun.
-				xsRuleIgnoreIntervalOnce("towerManager");
-			}
-			else
-			{
-				aiEcho("[GodBot] Defend over - the army returns to the engine's defence.");
-			}
-		}
 		godUpdateStalemate();
 		godManageWinConditions(data);
-		// The engine's attackManager is the only thing that launches attacks. This
-		// gate holds it closed while we defend home or an enemy Titan is unanswerable.
-		data.setFlag(cStrategyFlagCanAttack,
-			gGodDefendHome == false && godTitanAllowsAttack() && godAttackGateOpen());
+		// The engine's attackManager is the only thing that launches attacks, and its
+		// own defend plan owns the army. This gate holds new attacks back only while
+		// an enemy Titan is unanswerable.
+		data.setFlag(cStrategyFlagCanAttack, godTitanAllowsAttack() && godAttackGateOpen());
 		return true;
 	};
 
@@ -824,11 +780,6 @@ minInterval 30
 	{
 		underAttack = 1;
 	}
-	int defend = 0;
-	if (gGodDefendHome == true)
-	{
-		defend = 1;
-	}
 	aiEcho("[GBOT] t=" + xsGetTime()
 		+ " age=" + kbPlayerGetAge(cMyID)
 		+ " vills=" + kbUnitCount(cUnitTypeAbstractVillager, cMyID, cUnitStateAlive)
@@ -845,8 +796,7 @@ minInterval 30
 		+ " state=" + state
 		+ " underAttack=" + underAttack
 		+ " enemies=" + gGodEnemyCount
-		+ " allies=" + gGodAllyCount
-		+ " defend=" + defend);
+		+ " allies=" + gGodAllyCount);
 }
 
 //==============================================================================
