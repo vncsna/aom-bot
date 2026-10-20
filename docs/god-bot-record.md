@@ -59,6 +59,7 @@ Keep it small:
 
 | Date | Commit | Change | Expected effect | Observed |
 |---|---|---|---|---|
+| 2026-10-20 | tree | Keep the retreat's loss-window sample on the plan (user variable `GodSample`) instead of three parallel `int[]` globals | A plan that ends cannot leave a stale sample behind, and there is no array alignment to maintain | — |
 | 2026-10-20 | `8f08b4e` | Delete the 360-second Mythic stalemate: `cStrategyFlagBuildTitan`/`BuildWonder` stay on from init and the engine's own guards decide | No bot-invented delay before the tech is bought; the Titan starts as soon as the bank and the favour allow | — |
 | 2026-10-20 | `68a04ce` | Hold myth training and god-power rebuys only once `haveExcessResourceAmount(1500)` passes, until the research starts or the Gate is charged | The 50 favour banks when the purchase is actually possible, so the hold costs a couple of minutes of myth units instead of the whole match, and a rebuy cannot take the bank | — |
 | 2026-10-20 | `1909b54` | The Wonder fallback uses `cCalculateNumBuildersAutomatically` instead of one builder | The retried Wonder is built with the engine's own 5–10 builders, not a single villager | — |

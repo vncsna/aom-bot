@@ -54,10 +54,6 @@ const int cGodTitanHuntArmyPop = 60;
 bool gGodNavalMap = false;
 bool gGodPushing = false;
 int gGodLastAge = -1;
-// Per attack plan in the field: its power at the start of the loss window, and when.
-int[] gGodRetreatPlanIDs = default;
-int[] gGodRetreatSamplePops = default;
-int[] gGodRetreatSampleTimes = default;
 bool gGodHoldingFavour = false;
 int gGodWonderBaseIndex = -1;
 
@@ -194,6 +190,30 @@ int godCadenceInterval()
 		return cGodPushInterval;
 	}
 	return godSlowInterval();
+}
+
+// The attack's power at the start of its loss window. The sample lives on the plan
+// itself - value 0 is when the window opened, value 1 the power it opened at - so a
+// plan that ends takes its sample with it and there is no parallel array to keep in
+// step. Non-Titan attack plans carry no engine user variables, so slot 0 is ours.
+int godSamplePower(int planID = -1, int ourPower = 0)
+{
+	int now = xsGetTime();
+	if (aiPlanGetUserVariableIndex(planID, "GodSample") == -1)
+	{
+		aiPlanAddUserVariableInt(planID, 0, "GodSample", 2);
+		aiPlanSetUserVariableInt(planID, 0, 0, now);
+		aiPlanSetUserVariableInt(planID, 0, 1, ourPower);
+		return ourPower;
+	}
+	// Keep a plan's sample until its window has passed, so losses add up across checks.
+	if ((now - aiPlanGetUserVariableInt(planID, 0, 0)) > cGodRetreatLossWindow)
+	{
+		aiPlanSetUserVariableInt(planID, 0, 0, now);
+		aiPlanSetUserVariableInt(planID, 0, 1, ourPower);
+		return ourPower;
+	}
+	return aiPlanGetUserVariableInt(planID, 0, 1);
 }
 
 // Is this attack bleeding out, outnumbered on the spot, or standing in front of a
@@ -655,10 +675,6 @@ rule godRetreatMonitor
 inactive
 minInterval 10
 {
-	int now = xsGetTime();
-	int[] planIDs = new int(0, -1);
-	int[] samplePops = new int(0, -1);
-	int[] sampleTimes = new int(0, -1);
 	int[] plans = aiPlanGetIDsByType(cPlanAttack);
 	for (int i = 0; i < plans.size(); i++)
 	{
@@ -684,29 +700,12 @@ minInterval 10
 			continue;
 		}
 		int ourPop = kbUnitsGetPower(units, true);
-		// Keep a plan's sample until its window has passed, so losses add up across
-		// checks.
-		int samplePop = ourPop;
-		int sampleTime = now;
-		int index = gGodRetreatPlanIDs.find(planID);
-		if (index != -1 && (now - gGodRetreatSampleTimes[index]) <= cGodRetreatLossWindow)
-		{
-			samplePop = gGodRetreatSamplePops[index];
-			sampleTime = gGodRetreatSampleTimes[index];
-		}
+		int samplePop = godSamplePower(planID, ourPop);
 		if (godAttackIsLosing(planID, units.size(), ourPop, samplePop) == true)
 		{
 			godRetreatPlan(planID);
-			continue;
 		}
-		planIDs.add(planID);
-		samplePops.add(samplePop);
-		sampleTimes.add(sampleTime);
 	}
-	// Plans that ended or left the field drop out of the samples here.
-	gGodRetreatPlanIDs = planIDs;
-	gGodRetreatSamplePops = samplePops;
-	gGodRetreatSampleTimes = sampleTimes;
 }
 
 // Give myth training and god-power rebuys their spending back.

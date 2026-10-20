@@ -138,9 +138,10 @@ forth. While pushing the cadence drops to `cGodPushInterval`, so the army stays 
 push decision lives in `godPushMonitor` because it reads both armies.
 
 **Retreat when it is not working.** `godRetreatMonitor` judges each attack in the field on
-its own. It samples the attack's power when it first sees it and pulls back when the attack
-loses `cGodRetreatLossPercent` of that power within `cGodRetreatLossWindow` seconds, is
-clearly outnumbered by the enemy on the spot, or stands in front of a Titan. The loss window
+its own. The plan carries its own loss-window sample — the power it had and when the window
+opened, as plan user variables — and the attack is pulled back when it loses
+`cGodRetreatLossPercent` of that power within `cGodRetreatLossWindow` seconds, is clearly
+outnumbered by the enemy on the spot, or stands in front of a Titan. The loss window
 is what catches a fight the enemy count calls even while the army melts. Pulling back the
 main army also sets the next attack one interval out, so the bot regroups rather than
 re-committing. It leaves the engine's own Titan plans alone: a Titan is one unit, so the
