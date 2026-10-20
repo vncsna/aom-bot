@@ -106,39 +106,6 @@ void godCountPlayers()
 	}
 }
 
-// The next tower upgrade we can research right now, in the engine's own order.
-int godNextTowerUpgrade()
-{
-	int watchTower = cTechWatchTower;
-	int guardTower = cTechGuardTower;
-	if (cMyCulture == cCultureAztec)
-	{
-		watchTower = cTechTzompantliWatchTower;
-		guardTower = cTechTemiminaloyanTrials;
-	}
-	if (kbTechGetStatus(watchTower) == cTechStatusObtainable)
-	{
-		return watchTower;
-	}
-	if (kbTechGetStatus(cTechCrenellations) == cTechStatusObtainable)
-	{
-		return cTechCrenellations;
-	}
-	if (kbTechGetStatus(guardTower) == cTechStatusObtainable)
-	{
-		return guardTower;
-	}
-	if (cMyCulture == cCultureEgyptian && kbTechGetStatus(cTechBallistaTower) == cTechStatusObtainable)
-	{
-		return cTechBallistaTower;
-	}
-	if (cMyCulture == cCultureChinese && kbTechGetStatus(cTechCrossbowTower) == cTechStatusObtainable)
-	{
-		return cTechCrossbowTower;
-	}
-	return -1;
-}
-
 // How much enemy military is sitting on a point. The bot sees the whole map, so
 // it never has to scout to know this.
 int godEnemyMilitaryNear(vector location = cInvalidVector, float radius = 60.0)
@@ -575,49 +542,6 @@ minInterval 30
 	aiTaskDeleteUnits(warships);
 }
 
-// Turrets upgraded as early as possible: research the next tower upgrade the
-// moment it is obtainable. We publish the plan through the engine's own
-// gTowerOffensiveResearchPlanID so the stock tower monitor defers to us.
-rule godTowerUpgradeMonitor
-inactive
-minInterval 10
-{
-	if (cGameModeCurrent == cGameModeDeathmatch)
-	{
-		xsDisableRule("godTowerUpgradeMonitor");
-		return;
-	}
-	if (cDifficultyCurrent == cDifficultyEasy)
-	{
-		xsDisableRule("godTowerUpgradeMonitor");
-		return;
-	}
-	if (checkStrategyFlag(cStrategyFlagAutoResearchMilitaryUpgrades) == false)
-	{
-		return;
-	}
-	if (aiPlanGetIsIDValid(gTowerOffensiveResearchPlanID) == true)
-	{
-		return;
-	}
-	if (kbUnitCount(cUnitTypeSentryTower, cMyID, cUnitStateAlive) < 1)
-	{
-		return;
-	}
-	if (areAtMaxConcurrentResearchPlans("godTowerUpgradeMonitor") == true)
-	{
-		return;
-	}
-	int tech = godNextTowerUpgrade();
-	if (tech == -1)
-	{
-		return;
-	}
-	aiEcho("[GodBot] Researching tower upgrade: " + kbTechGetName(tech) + ".");
-	gTowerOffensiveResearchPlanID = researchSimpleTech(tech, cUnitTypeSentryTower, -1, 70);
-	aiPlanSetEventHandler(gTowerOffensiveResearchPlanID, cPlanEventStateChange, "resetOffensiveTowerResearchPlan");
-}
-
 // The push decision reads both armies, so it runs on its own timer rather than in
 // the per-second strategy update.
 rule godPushMonitor
@@ -866,7 +790,6 @@ void postInit()
 {
 	aiEcho("=== [GodBot] postInit() - activating monitors ===");
 	xsEnableRule("godNavalCleanupMonitor");
-	xsEnableRule("godTowerUpgradeMonitor");
 	xsEnableRule("godPushMonitor");
 	xsEnableRule("godRetreatMonitor");
 	xsEnableRule("godFavourReserveMonitor");

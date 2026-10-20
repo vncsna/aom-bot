@@ -71,7 +71,6 @@ becomes a debugger breakpoint that freezes the bot — see the AI Debugger Confi
 |---|---|---|
 | Strategy | `godBotStrategy()` | Flags, naval, cadence, attack gate |
 | `godNavalCleanupMonitor` | 30s | Scrap warships on non-naval maps |
-| `godTowerUpgradeMonitor` | 10s | Research tower upgrades as early as possible |
 | `godPushMonitor` | 10s | Decide the push and change the cadence |
 | `godRetreatMonitor` | 10s | Pull an attack back when it is bleeding out, outnumbered or facing a Titan |
 | `godFavourReserveMonitor` | 10s | Hold the 50 favour for Secrets of the Titans once the bank is ready |
@@ -101,12 +100,11 @@ power per defend base in `military_defend.xs` (`gEnemyPowerInBases`) and moves i
 defend plan to the attacked base. A defend-home flag was tried and flipped ten times in a
 match without changing the outcome, so it is gone; the attack gate no longer closes for it.
 
-**Turrets are upgraded immediately.** `godTowerUpgradeMonitor` researches the next
-obtainable tower upgrade as soon as we own a tower, ignoring the stock time gates (4 minutes
-in Classical, 5 in Heroic, 6 in Mythic). It follows the engine's own progression and culture
-variants, publishes the plan through `gTowerOffensiveResearchPlanID`, and reuses the stock
-`resetOffensiveTowerResearchPlan` handler so the stock monitor defers instead of stacking a
-second plan.
+Tower upgrades are the engine's too. A `godTowerUpgradeMonitor` used to research the next
+obtainable upgrade immediately, publishing the plan through `gTowerOffensiveResearchPlanID`
+to make the stock monitor defer. It bought the same upgrades the engine buys four to six
+minutes later, and no recorded match credited it, so it is gone and the stock
+`offensiveTowerUpgradeMonitor` runs on its own gates.
 
 ### Navy
 
@@ -238,6 +236,10 @@ change was meant to do are summarised in [`god-bot-record.md`](god-bot-record.md
   measured results; revisit once telemetry shows which games are lost and why.
 - **The tuning numbers are starting points.** Retreat and push thresholds are the first
   things to adjust after a game.
+- **Tower upgrades are the engine's again.** The early-upgrade rule was deleted unmeasured:
+  it bought the same upgrades the stock monitor buys four to six minutes later and no
+  recorded match credited it. If a loss ever turns on a tower falling early, re-taking that
+  decision is a measured change, not a re-add by default.
 - **The endgame patches only touch the engine's stalls.** The favour reserve and the Wonder
   fallback both act on plans the engine already owns; neither creates a win condition of its
   own. A stall with a different cause (a missing bank, a Gate that cannot be placed) still

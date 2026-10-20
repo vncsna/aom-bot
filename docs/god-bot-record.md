@@ -59,6 +59,7 @@ Keep it small:
 
 | Date | Commit | Change | Expected effect | Observed |
 |---|---|---|---|---|
+| 2026-10-20 | tree | Delete `godTowerUpgradeMonitor` and `godNextTowerUpgrade`: the stock tower monitor runs on its own gates again | The same upgrades four to six minutes later, and one fewer rule; the unmeasured early-upgrade path stops competing with the engine | — needs the before/after baseline on mirage |
 | 2026-10-20 | tree | Derive the attack gate from `gAttackManager.mLastAttackTime` and delete `godApplyAttackCadence` | The gate holds the intended interval after the engine re-randomises `mAttackInterval`, instead of reporting a number it does not use | — |
 | 2026-10-20 | tree | Keep the retreat's loss-window sample on the plan (user variable `GodSample`) instead of three parallel `int[]` globals | A plan that ends cannot leave a stale sample behind, and there is no array alignment to maintain | — |
 | 2026-10-20 | tree | Naval cleanup reads `godIsNavalMap()` and collects results with `kbUnitQueryGetResults` | One less global; no per-unit dead-ID filter; the scrap line still names the unit type that leaked | — |
