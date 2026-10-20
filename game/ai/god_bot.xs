@@ -63,6 +63,7 @@ int[] gGodRetreatPlanIDs = default;
 int[] gGodRetreatSamplePops = default;
 int[] gGodRetreatSampleTimes = default;
 bool gGodHoldingFavour = false;
+int gGodWonderBaseIndex = -1;
 
 int gGodEnemyCount = 0;
 int gGodAllyCount = 0;
@@ -791,6 +792,66 @@ minInterval 10
 	}
 }
 
+// The engine places the Wonder in the safest base's back areas only, and a failed
+// plan stays failed, so a crowded base stalls the Wonder forever. Replace a failed
+// plan with a plain one on the next TC base in the ring; that searches the whole
+// base instead of the back areas, and the next failure moves on again.
+rule godWonderFallbackMonitor
+inactive
+minInterval 20
+{
+	if (gGodStalemate == false)
+	{
+		return;
+	}
+	if (kbUnitCount(cUnitTypeWonder, cMyID, cUnitStateAlive) >= 1)
+	{
+		return;
+	}
+	int[] plans = aiPlanGetIDsByTypeAndVariableIntValue(cPlanBuild, cBuildPlanBuildingTypeID, cUnitTypeWonder);
+	bool failed = false;
+	for (int i = 0; i < plans.size(); i++)
+	{
+		if (aiPlanGetState(plans[i]) != cPlanStateFailed)
+		{
+			return; // Still placing, or waiting for the resources.
+		}
+		aiPlanDestroy(plans[i]);
+		failed = true;
+	}
+	if (failed == false)
+	{
+		return; // The engine has not tried yet.
+	}
+	if (gDefensivelyOverrun == true)
+	{
+		return; // A ten-minute investment does not start over a base being overrun.
+	}
+	int[] bases = new int(0, -1);
+	int numBases = kbBaseGetNumber(cMyID);
+	for (int i = 0; i < numBases; i++)
+	{
+		int baseID = kbBaseGetIDByIndex(cMyID, i);
+		if (kbBaseIsFlagSet(cMyID, baseID, cBaseFlagTownCenter) == false)
+		{
+			continue;
+		}
+		if (gLandAreaGroupID != -1 && kbPathAreAreaGroupsConnected(gLandAreaGroupID,
+			kbAreaGroupGetIDByPosition(kbBaseGetLocation(cMyID, baseID)), cPassabilityLand) == false)
+		{
+			continue;
+		}
+		bases.add(baseID);
+	}
+	if (bases.size() == 0)
+	{
+		return;
+	}
+	gGodWonderBaseIndex = (gGodWonderBaseIndex + 1) % bases.size();
+	createSimpleBuildPlan(cUnitTypeWonder, 1, 99, gEconomicBuildingsCategoryID, bases[gGodWonderBaseIndex], 1);
+	aiEcho("[GodBot] Wonder placement failed - retrying on base " + (gGodWonderBaseIndex + 1) + " of " + bases.size() + ".");
+}
+
 // One structured line every 30s for offline analysis. Read it back from
 // temp/Logs/MythRetoldAIOutputPlayer<N>.txt; see AGENTS.md.
 rule godTelemetryMonitor
@@ -868,5 +929,6 @@ void postInit()
 	xsEnableRule("godPushMonitor");
 	xsEnableRule("godRetreatMonitor");
 	xsEnableRule("godFavourReserveMonitor");
+	xsEnableRule("godWonderFallbackMonitor");
 	xsEnableRule("godTelemetryMonitor");
 }
